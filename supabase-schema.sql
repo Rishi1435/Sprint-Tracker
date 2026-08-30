@@ -1,12 +1,12 @@
--- Run this in your Supabase project's SQL Editor (Dashboard → SQL Editor → New query)
--- This cleanly drops any existing tables and recreates them fresh.
+-- Clean Supabase Reset Schema
+-- Run this in your Supabase SQL Editor: https://supabase.com/dashboard/project/lchrvbockdhdyoewlobe/sql/new
 
 drop table if exists progress cascade;
 drop table if exists users cascade;
 
 create extension if not exists "pgcrypto";
 
-create table if not exists users (
+create table users (
   id uuid primary key default gen_random_uuid(),
   name text not null unique,
   nickname text,
@@ -14,7 +14,7 @@ create table if not exists users (
   created_at timestamptz not null default now()
 );
 
-create table if not exists progress (
+create table progress (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references users(id) on delete cascade,
   day_number int not null check (day_number between 1 and 21),
@@ -30,21 +30,13 @@ create table if not exists progress (
   unique (user_id, day_number)
 );
 
--- Row Level Security
 alter table users enable row level security;
 alter table progress enable row level security;
 
--- Policies (Open for friend group sprint room)
-create policy "public can read users" on users
-  for select using (true);
-create policy "public can create users" on users
-  for insert with check (true);
-create policy "public can update users" on users
-  for update using (true);
+create policy "public can read users" on users for select using (true);
+create policy "public can create users" on users for insert with check (true);
+create policy "public can update users" on users for update using (true);
 
-create policy "public can read progress" on progress
-  for select using (true);
-create policy "public can create progress" on progress
-  for insert with check (true);
-create policy "public can update progress" on progress
-  for update using (true);
+create policy "public can read progress" on progress for select using (true);
+create policy "public can create progress" on progress for insert with check (true);
+create policy "public can update progress" on progress for update using (true);
