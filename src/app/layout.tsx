@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import NavBar from "@/components/NavBar";
+import { UserProvider } from "@/lib/UserContext";
 
 export const metadata: Metadata = {
   title: "Sprint Room — 21-Day Job Prep Tracker",
@@ -23,7 +24,9 @@ export default function RootLayout({
           href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap"
           rel="stylesheet"
         />
-        <script dangerouslySetInnerHTML={{ __html: `
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
           (function(){
             try {
               var theme = localStorage.getItem('theme');
@@ -32,13 +35,17 @@ export default function RootLayout({
               }
             } catch(e){}
           })();
-        `}} />
+        `,
+          }}
+        />
       </head>
       <body className="antialiased min-h-screen">
-        <NavBar />
-        <main className="mx-auto w-full max-w-[1600px] px-4 sm:px-8 xl:px-12 pb-24 pt-6">
-          {children}
-        </main>
+        <UserProvider>
+          <NavBar />
+          <main className="mx-auto w-full max-w-[1600px] px-4 sm:px-8 xl:px-12 pb-24 pt-6">
+            {children}
+          </main>
+        </UserProvider>
       </body>
     </html>
   );

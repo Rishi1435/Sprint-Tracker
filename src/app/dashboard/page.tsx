@@ -40,7 +40,7 @@ const CATEGORY_ICONS: Record<TaskKey, string> = {
 
 export default function DashboardPage() {
   const router = useRouter();
-  const { user, loading: userLoading } = useCurrentUser();
+  const { user, loading: userLoading, updateUserSession } = useCurrentUser();
   const [rows, setRows] = useState<ProgressRow[]>([]);
   const [squadUsers, setSquadUsers] = useState<UserRow[]>([]);
   const [allSquadProgress, setAllSquadProgress] = useState<ProgressRow[]>([]);
@@ -142,7 +142,10 @@ export default function DashboardPage() {
     });
 
     try {
-      await setTask(user.id, day, taskKey, next);
+      const res = await setTask(user.id, day, taskKey, next);
+      if (res?.startDateUpdated) {
+        updateUserSession({ start_date: res.startDateUpdated });
+      }
     } catch {
       setErrorMsg("Couldn't save that — check your connection and try again.");
       // revert

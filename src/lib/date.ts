@@ -5,7 +5,8 @@ export function todayISO(): string {
 }
 
 /** Which sprint day (1..totalDays) a user is on, given the date they started. */
-export function dayNumberFor(startDateISO: string, totalDays: number): number {
+export function dayNumberFor(startDateISO: string | null | undefined, totalDays: number): number {
+  if (!startDateISO) return 1; // User is on Day 1 until they begin
   const [sy, sm, sd] = startDateISO.split("-").map(Number);
   const start = new Date(sy, (sm ?? 1) - 1, sd ?? 1);
   const now = new Date();
@@ -15,7 +16,8 @@ export function dayNumberFor(startDateISO: string, totalDays: number): number {
   return Math.min(Math.max(day, 1), totalDays);
 }
 
-export function formatDateShort(iso: string): string {
+export function formatDateShort(iso: string | null | undefined): string {
+  if (!iso) return "Not started yet";
   const [y, m, d] = iso.split("-").map(Number);
   const date = new Date(y, (m ?? 1) - 1, d ?? 1);
   return date.toLocaleDateString("en-IN", { day: "numeric", month: "short" });

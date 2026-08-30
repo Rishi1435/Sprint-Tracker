@@ -2,7 +2,7 @@ export interface UserRow {
   id: string;
   name: string;
   nickname?: string;
-  start_date: string; // YYYY-MM-DD — day 1 of that user's sprint
+  start_date?: string | null; // YYYY-MM-DD — set on the day user completes their first task (null before that)
   created_at: string;
 }
 

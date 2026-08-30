@@ -28,7 +28,8 @@ export async function getOrCreateUser(name: string, nickname?: string): Promise<
     return existing as UserRow;
   }
 
-  const insertObj: any = { name: trimmed, start_date: todayISO() };
+  // New user starts with start_date as null until they complete their first task
+  const insertObj: any = { name: trimmed, start_date: null };
   if (nickname?.trim()) insertObj.nickname = nickname.trim();
 
   const { data, error } = await supabase
@@ -84,7 +85,7 @@ export async function setTask(
   day: number,
   taskKey: TaskKey,
   value: boolean
-): Promise<void> {
+): Promise<{ startDateUpdated?: string }> {
   const { error } = await supabase.from("progress").upsert(
     {
       user_id: userId,
@@ -95,4 +96,24 @@ export async function setTask(
     { onConflict: "user_id,day_number" }
   );
   if (error) throw error;
+
+  // When marking a task as done, check if user's start_date needs to be initialized
+  if (value) {
+    const { data: userData } = await supabase
+      .from("users")
+      .select("start_date")
+      .eq("id", userId)
+      .maybeSingle();
+
+    if (userData && !userData.start_date) {
+      const today = todayISO();
+      await supabase
+        .from("users")
+        .update({ start_date: today })
+        .eq("id", userId);
+      return { startDateUpdated: today };
+    }
+  }
+
+  return {};
 }
