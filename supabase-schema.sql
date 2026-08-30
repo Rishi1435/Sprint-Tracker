@@ -1,4 +1,8 @@
--- Run this once in your Supabase project's SQL Editor (Dashboard → SQL Editor → New query).
+-- Run this in your Supabase project's SQL Editor (Dashboard → SQL Editor → New query)
+-- This cleanly drops any existing tables and recreates them fresh.
+
+drop table if exists progress cascade;
+drop table if exists users cascade;
 
 create extension if not exists "pgcrypto";
 
@@ -26,16 +30,11 @@ create table if not exists progress (
   unique (user_id, day_number)
 );
 
--- Safe migration in case progress table was already created
-alter table progress add column if not exists gpp_project boolean not null default false;
-
 -- Row Level Security
 alter table users enable row level security;
 alter table progress enable row level security;
 
--- This app has no passwords — anyone with the deployed link can read and write.
--- That's fine for a small trusted friend group. Do not use this schema for
--- anything containing sensitive data.
+-- Policies (Open for friend group sprint room)
 create policy "public can read users" on users
   for select using (true);
 create policy "public can create users" on users
