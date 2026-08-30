@@ -54,7 +54,8 @@ export default function DashboardPage() {
     if (!userLoading && !user) router.replace("/");
   }, [userLoading, user, router]);
 
-  const currentDay = useMemo(() => (user ? dayNumberFor(user.start_date, TOTAL_DAYS) : 1), [user]);
+  const hasStarted = Boolean(user?.start_date) || rows.some((r) => countCheckedForDay(r, r.day_number) > 0);
+  const currentDay = useMemo(() => (hasStarted && user?.start_date ? dayNumberFor(user.start_date, TOTAL_DAYS) : 1), [hasStarted, user]);
 
   useEffect(() => {
     if (!user) return;
@@ -81,6 +82,7 @@ export default function DashboardPage() {
 
   const progressByDay = useMemo(() => new Map(rows.map((r) => [r.day_number, r])), [rows]);
   const day = selectedDay ?? currentDay;
+  const isFutureDay = day > currentDay;
   const dayPlan = getDayPlan(day);
   const selectedRow = progressByDay.get(day);
   const totalTasksForDay = dayPlan ? dayPlan.taskKeys.length : 7;
@@ -96,7 +98,8 @@ export default function DashboardPage() {
     return squadUsers
       .map((u) => {
         const uRows = allSquadProgress.filter((p) => p.user_id === u.id);
-        const uDay = dayNumberFor(u.start_date, TOTAL_DAYS);
+        const uHasStarted = Boolean(u.start_date) || uRows.some((r) => countCheckedForDay(r, r.day_number) > 0);
+        const uDay = uHasStarted && u.start_date ? dayNumberFor(u.start_date, TOTAL_DAYS) : 1;
         const todayR = rowForDay(uRows, uDay);
         const uTotalChecked = totalCheckedForUser(uRows);
         return {
@@ -112,7 +115,7 @@ export default function DashboardPage() {
   }, [squadUsers, allSquadProgress]);
 
   async function toggle(taskKey: TaskKey) {
-    if (!user) return;
+    if (!user || isFutureDay) return;
     const wasChecked = Boolean(selectedRow?.[taskKey]);
     const next = !wasChecked;
 
@@ -179,18 +182,19 @@ export default function DashboardPage() {
         {[
           {
             label: "Current Day",
-            value: `Day ${day} / ${TOTAL_DAYS}`,
-            sub: `${dayPlan.weekday} · Week ${dayPlan.week}`,
+            value: `Day ${currentDay} / ${TOTAL_DAYS}`,
+            sub: hasStarted ? `${dayPlan.weekday} · Week ${dayPlan.week}` : "Ready to begin sprint",
             icon: "📅",
           },
           {
             label: "Day Tasks",
             value: `${checkedToday}/${totalTasksForDay}`,
-            sub:
-              checkedToday === totalTasksForDay
-                ? "All done for today! 🎉"
-                : `${totalTasksForDay - checkedToday} remaining today`,
-            icon: checkedToday === totalTasksForDay ? "✅" : "📋",
+            sub: isFutureDay
+              ? "🔒 Read-only preview"
+              : checkedToday === totalTasksForDay
+              ? "All done for today! 🎉"
+              : `${totalTasksForDay - checkedToday} remaining today`,
+            icon: isFutureDay ? "🔒" : checkedToday === totalTasksForDay ? "✅" : "📋",
           },
           {
             label: "Sprint Completion",
@@ -245,6 +249,11 @@ export default function DashboardPage() {
                     ☀️ Sunday Schedule + GPP Projects
                   </span>
                 )}
+                {isFutureDay && (
+                  <span className="badge text-text-muted bg-surface-raised font-semibold text-[10px] border border-border">
+                    🔒 Future Day (Read-Only)
+                  </span>
+                )}
               </div>
               <h1 className="font-display text-[32px] font-bold leading-tight text-text">
                 Day {day}{" "}
@@ -287,7 +296,9 @@ export default function DashboardPage() {
                   {displayName}&apos;s Daily Checklist
                 </h2>
                 <p className="text-[12.5px] text-text-muted">
-                  {dayPlan.isSunday
+                  {isFutureDay
+                    ? "Viewing upcoming syllabus in read-only mode"
+                    : dayPlan.isSunday
                     ? "Sunday Half Study (4h30m) + 1h GPP Project Revision · 1:30 PM onward 100% Free Reset"
                     : "Daily 3h30m Study Chain (7:30 PM – 11:45 PM) with Dinner Break at 9:00 PM"}
                 </p>
@@ -301,6 +312,24 @@ export default function DashboardPage() {
               </button>
             </div>
 
+            {/* Future Day Read-Only Banner */}
+            {isFutureDay && (
+              <div className="rounded-xl border border-border bg-surface-raised px-4 py-3 text-[13px] text-text-muted flex items-center justify-between gap-3 mb-4 animate-fade-in">
+                <div className="flex items-center gap-2.5">
+                  <span className="text-lg">🔒</span>
+                  <span>
+                    <strong>Day {day} is upcoming.</strong> You are currently on <strong>Day {currentDay}</strong>. You can preview all upcoming tasks below in Read-Only mode.
+                  </span>
+                </div>
+                <button
+                  onClick={() => setSelectedDay(currentDay)}
+                  className="text-[12px] font-semibold text-accent hover:underline shrink-0"
+                >
+                  Go to Day {currentDay} →
+                </button>
+              </div>
+            )}
+
             <div className="flex flex-col gap-3">
               {dayPlan.taskKeys.map((key) => (
                 <ChecklistItem
@@ -311,6 +340,7 @@ export default function DashboardPage() {
                   checked={Boolean(selectedRow?.[key])}
                   onToggle={() => toggle(key)}
                   disabled={dataLoading || pendingKey === key}
+                  readOnly={isFutureDay}
                 />
               ))}
             </div>
@@ -350,8 +380,8 @@ export default function DashboardPage() {
                 <p className="text-[16px] font-bold text-text mt-0.5">{finishedDays} / {TOTAL_DAYS}</p>
               </div>
               <div className="text-center p-2 rounded-lg bg-surface-raised">
-                <p className="text-[11px] text-text-faint uppercase font-semibold">Started On</p>
-                <p className="text-[14px] font-bold text-text mt-0.5">{formatDateShort(user.start_date)}</p>
+                <p className="text-[11px] text-text-faint uppercase font-semibold">Sprint Started</p>
+                <p className="text-[13px] font-bold text-text mt-0.5">{formatDateShort(user.start_date)}</p>
               </div>
             </div>
           </div>
@@ -382,7 +412,7 @@ export default function DashboardPage() {
                 ] as TaskKey[]
               ).map((key) => {
                 const count = catStats[key] || 0;
-                const totalTarget = key === "gpp_project" ? 3 : 21; // 3 Sundays for GPP, 21 for others
+                const totalTarget = key === "gpp_project" ? 3 : 21;
                 const pct = Math.min(100, Math.round((count / totalTarget) * 100));
                 return (
                   <div key={key} className="flex flex-col gap-1">

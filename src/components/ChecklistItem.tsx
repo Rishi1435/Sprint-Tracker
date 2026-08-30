@@ -7,6 +7,7 @@ interface Props {
   checked: boolean;
   onToggle: () => void;
   disabled?: boolean;
+  readOnly?: boolean;
 }
 
 export default function ChecklistItem({
@@ -16,7 +17,51 @@ export default function ChecklistItem({
   checked,
   onToggle,
   disabled,
+  readOnly,
 }: Props) {
+  if (readOnly) {
+    return (
+      <div
+        className="stagger-item flex w-full items-start gap-4 rounded-xl border border-border/80 bg-surface/70 p-4 text-left opacity-85 transition-all"
+        style={{ boxShadow: "var(--shadow-sm)" }}
+      >
+        {/* Read-Only Lock Indicator */}
+        <span
+          aria-hidden
+          className="mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-lg border border-border bg-surface-raised text-[12px] text-text-faint"
+          title="Future day task (Read-Only preview)"
+        >
+          🔒
+        </span>
+
+        {/* Content */}
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="block text-[11.5px] font-bold uppercase tracking-wider text-text-muted">
+              {label}
+            </span>
+            {timing && (
+              <span className="rounded-full bg-surface-raised px-2 py-0.5 text-[10.5px] font-semibold text-text-faint flex items-center gap-1 border border-border-soft">
+                <span>⏰</span>
+                <span>{timing.time}</span>
+                <span className="text-text-muted">({timing.duration})</span>
+              </span>
+            )}
+          </div>
+
+          <span className="mt-1.5 block text-[15px] leading-snug text-text">
+            {description}
+          </span>
+        </div>
+
+        {/* Read-only tag */}
+        <span className="mt-1 shrink-0 rounded-md bg-surface-raised px-2 py-0.5 text-[11px] font-medium text-text-faint border border-border-soft">
+          Future Day
+        </span>
+      </div>
+    );
+  }
+
   return (
     <button
       onClick={onToggle}

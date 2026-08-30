@@ -574,6 +574,10 @@ export default function SquadPage() {
                       <span className="shrink-0 text-[11px] font-semibold text-done">
                         ✓ Completed
                       </span>
+                    ) : inspectSelectedDay > inspectCurrentDay ? (
+                      <span className="shrink-0 rounded-md bg-surface-raised px-2 py-0.5 text-[10.5px] font-medium text-text-faint border border-border-soft">
+                        🔒 Future Day
+                      </span>
                     ) : (
                       <span className="shrink-0 text-[11px] font-medium text-text-faint">
                         Pending
