@@ -4,13 +4,13 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCurrentUser } from "@/lib/useCurrentUser";
-import { getProgressForUser, setTask, listUsers, getAllProgress } from "@/lib/db";
+import { getProgressForUser, setTask, listUsers, getAllProgress, subscribeToAllProgress, subscribeToUsers } from "@/lib/db";
 import type { ProgressRow, UserRow } from "@/lib/types";
 import {
   TASK_LABELS,
   TOTAL_DAYS,
   TOTAL_TASKS,
-  getDayPlan,
+  buildSprintPlan,
   type TaskKey,
 } from "@/lib/plan";
 import { dayNumberFor, formatDateShort } from "@/lib/date";
@@ -26,6 +26,8 @@ import DayRail from "@/components/DayRail";
 import ChecklistItem from "@/components/ChecklistItem";
 import ProgressBar from "@/components/ProgressBar";
 import ScheduleRulesModal from "@/components/ScheduleRulesModal";
+import DayNotes from "@/components/DayNotes";
+import NotificationBanner from "@/components/NotificationBanner";
 
 const CATEGORY_ICONS: Record<TaskKey, string> = {
   aptitude: "📐",
@@ -54,7 +56,11 @@ export default function DashboardPage() {
     if (!userLoading && !user) router.replace("/");
   }, [userLoading, user, router]);
 
-  const hasStarted = Boolean(user?.start_date) || rows.some((r) => countCheckedForDay(r, r.day_number) > 0);
+  // Which sprint days land on a Sunday — and so get the daytime timetable plus
+  // the 8th GPP task — depends on the weekday this user started on.
+  const plan = useMemo(() => buildSprintPlan(user?.start_date), [user?.start_date]);
+
+  const hasStarted = Boolean(user?.start_date) || rows.some((r) => countCheckedForDay(plan, r, r.day_number) > 0);
   const currentDay = useMemo(() => (hasStarted && user?.start_date ? dayNumberFor(user.start_date, TOTAL_DAYS) : 1), [hasStarted, user]);
 
   useEffect(() => {
@@ -80,16 +86,57 @@ export default function DashboardPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
+  // Live updates: subscribe to changes on the progress and users tables
+  useEffect(() => {
+    if (!user) return;
+    const unsubProgress = subscribeToAllProgress((evt) => {
+      if (evt.type === "DELETE") {
+        const day = evt.old?.day_number;
+        if (day == null) return;
+        setRows((prev) => prev.filter((r) => r.day_number !== day));
+        setAllSquadProgress((prev) => prev.filter((r) => r.id !== evt.old?.id));
+        return;
+      }
+      const row = evt.row;
+      if (!row) return;
+      if (row.user_id === user.id) {
+        setRows((prev) => {
+          const idx = prev.findIndex((r) => r.day_number === row.day_number);
+          if (idx === -1) return [...prev, row];
+          const copy = prev.slice();
+          copy[idx] = row;
+          return copy;
+        });
+      }
+      setAllSquadProgress((prev) => {
+        const idx = prev.findIndex((r) => r.id === row.id);
+        if (idx === -1) return [...prev, row];
+        const copy = prev.slice();
+        copy[idx] = row;
+        return copy;
+      });
+    });
+    const unsubUsers = subscribeToUsers(() => {
+      // Refresh user list (e.g., when a new person joins)
+      listUsers().then((u) => setSquadUsers(u)).catch(() => {});
+    });
+    return () => {
+      unsubProgress();
+      unsubUsers();
+    };
+  }, [user]);
+
   const progressByDay = useMemo(() => new Map(rows.map((r) => [r.day_number, r])), [rows]);
   const day = selectedDay ?? currentDay;
   const isFutureDay = day > currentDay;
-  const dayPlan = getDayPlan(day);
+  const dayPlan = plan.getDay(day);
+  const todayPlan = plan.getDay(currentDay);
   const selectedRow = progressByDay.get(day);
   const totalTasksForDay = dayPlan ? dayPlan.taskKeys.length : 7;
-  const checkedToday = countCheckedForDay(selectedRow, day);
-  const streak = useMemo(() => currentStreak(rows), [rows]);
-  const totalChecked = useMemo(() => totalCheckedForUser(rows), [rows]);
-  const finishedDays = useMemo(() => completedDaysCount(rows), [rows]);
+  const checkedToday = countCheckedForDay(plan, selectedRow, day);
+  const streak = useMemo(() => currentStreak(plan, rows), [plan, rows]);
+  const totalChecked = useMemo(() => totalCheckedForUser(plan, rows), [plan, rows]);
+  const finishedDays = useMemo(() => completedDaysCount(plan, rows), [plan, rows]);
   const catStats = useMemo(() => categoryStats(rows), [rows]);
   const overallPct = TOTAL_TASKS > 0 ? Math.round((totalChecked / TOTAL_TASKS) * 100) : 0;
 
@@ -98,16 +145,18 @@ export default function DashboardPage() {
     return squadUsers
       .map((u) => {
         const uRows = allSquadProgress.filter((p) => p.user_id === u.id);
-        const uHasStarted = Boolean(u.start_date) || uRows.some((r) => countCheckedForDay(r, r.day_number) > 0);
+        // Each member's own calendar, so their 8-task Sundays are counted right.
+        const uPlan = buildSprintPlan(u.start_date);
+        const uHasStarted = Boolean(u.start_date) || uRows.some((r) => countCheckedForDay(uPlan, r, r.day_number) > 0);
         const uDay = uHasStarted && u.start_date ? dayNumberFor(u.start_date, TOTAL_DAYS) : 1;
         const todayR = rowForDay(uRows, uDay);
-        const uTotalChecked = totalCheckedForUser(uRows);
+        const uTotalChecked = totalCheckedForUser(uPlan, uRows);
         return {
           user: u,
           currentDay: uDay,
-          todayChecked: countCheckedForDay(todayR, uDay),
+          todayChecked: countCheckedForDay(uPlan, todayR, uDay),
           overallPct: Math.round((uTotalChecked / TOTAL_TASKS) * 100),
-          streak: currentStreak(uRows),
+          streak: currentStreak(uPlan, uRows),
         };
       })
       .sort((a, b) => b.overallPct - a.overallPct || b.streak - a.streak)
@@ -162,7 +211,7 @@ export default function DashboardPage() {
 
   if (userLoading || !user || !dayPlan) {
     return (
-      <div className="flex min-h-[60vh] items-center justify-center">
+      <div className="flex min-h-[60dvh] items-center justify-center">
         <div className="flex flex-col items-center gap-3">
           <svg className="h-8 w-8 animate-spin text-accent" viewBox="0 0 24 24" fill="none">
             <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeDasharray="32" strokeLinecap="round" />
@@ -176,14 +225,16 @@ export default function DashboardPage() {
   const displayName = user.nickname || user.name;
 
   return (
-    <div className="flex flex-col gap-8 animate-fade-in">
+    <div className="flex flex-col gap-6 animate-fade-in sm:gap-8">
       {/* ── TOP STATS OVERVIEW (Widescreen 4-Column Grid) ── */}
-      <section className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <section className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         {[
           {
             label: "Current Day",
             value: `Day ${currentDay} / ${TOTAL_DAYS}`,
-            sub: hasStarted ? `${dayPlan.weekday} · Week ${dayPlan.week}` : "Ready to begin sprint",
+            sub: hasStarted
+              ? `${todayPlan?.weekday ?? ""} · Week ${todayPlan?.week ?? 1}`
+              : "Ready to begin sprint",
             icon: "📅",
           },
           {
@@ -211,17 +262,23 @@ export default function DashboardPage() {
         ].map((stat, i) => (
           <div
             key={stat.label}
-            className="stagger-item rounded-xl border border-border bg-surface p-4 transition-all duration-200 hover:border-accent/40"
+            className="stagger-item rounded-xl border border-border bg-surface p-3.5 transition-all duration-200 hover:border-accent/40 sm:p-4"
             style={{ boxShadow: "var(--shadow-sm)", animationDelay: `${i * 0.05}s` }}
           >
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-semibold uppercase tracking-wider text-text-faint">
+            <div className="flex items-start justify-between gap-2">
+              <span className="text-[10.5px] font-semibold uppercase tracking-wider text-text-faint sm:text-[11px]">
                 {stat.label}
               </span>
-              <span className="text-xl">{stat.icon}</span>
+              <span aria-hidden className="text-lg leading-none sm:text-xl">
+                {stat.icon}
+              </span>
             </div>
-            <p className="mt-2 text-[22px] font-bold text-text">{stat.value}</p>
-            <p className="mt-0.5 text-[12px] text-text-muted">{stat.sub}</p>
+            <p className="mt-2 text-[18px] font-bold leading-tight text-text sm:text-[22px]">
+              {stat.value}
+            </p>
+            <p className="mt-1 text-[11.5px] leading-snug text-text-muted sm:text-[12px]">
+              {stat.sub}
+            </p>
           </div>
         ))}
       </section>
@@ -233,31 +290,40 @@ export default function DashboardPage() {
         </div>
       )}
 
+      {/* ── DAILY REMINDER PROMPT ── */}
+      <NotificationBanner />
+
       {/* ── MAIN 2-COLUMN DASHBOARD LAYOUT ── */}
-      <div className="grid grid-cols-1 gap-8 lg:grid-cols-12 items-start">
+      <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-12 lg:gap-8">
         {/* ── LEFT COLUMN: Day Rail & Tasks Checklist (8 cols) ── */}
-        <div className="lg:col-span-8 flex flex-col gap-6">
+        <div className="flex flex-col gap-6 lg:col-span-8">
           {/* Day Header */}
           <div className="flex flex-wrap items-end justify-between gap-3">
-            <div>
-              <div className="flex items-center gap-2">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
                 <span className="text-[12px] font-semibold uppercase tracking-widest text-text-faint">
                   {day === currentDay ? "Today" : `${dayPlan.weekday}`} · Week {dayPlan.week}
                 </span>
                 {dayPlan.isSunday && (
                   <span className="badge text-white bg-accent font-bold text-[10px]">
-                    ☀️ Sunday Schedule + GPP Projects
+                    <span aria-hidden>☀️</span>
+                    <span className="sm:hidden">Sunday + GPP</span>
+                    <span className="hidden sm:inline">Sunday Schedule + GPP Projects</span>
                   </span>
                 )}
                 {isFutureDay && (
                   <span className="badge text-text-muted bg-surface-raised font-semibold text-[10px] border border-border">
-                    🔒 Future Day (Read-Only)
+                    <span aria-hidden>🔒</span>
+                    <span className="sm:hidden">Read-Only</span>
+                    <span className="hidden sm:inline">Future Day (Read-Only)</span>
                   </span>
                 )}
               </div>
-              <h1 className="font-display text-[32px] font-bold leading-tight text-text">
+              <h1 className="font-display text-[26px] font-bold leading-tight text-text sm:text-[32px]">
                 Day {day}{" "}
-                <span className="text-text-faint font-normal text-[24px]">/ {TOTAL_DAYS}</span>
+                <span className="text-[20px] font-normal text-text-faint sm:text-[24px]">
+                  / {TOTAL_DAYS}
+                </span>
               </h1>
             </div>
             <div className="flex items-center gap-2">
@@ -282,6 +348,7 @@ export default function DashboardPage() {
 
           {/* Spacious 21-Day Rail */}
           <DayRail
+            plan={plan}
             progressByDay={progressByDay}
             currentDay={currentDay}
             selectedDay={day}
@@ -306,24 +373,26 @@ export default function DashboardPage() {
 
               <button
                 onClick={() => setScheduleOpen(true)}
-                className="text-[12px] font-semibold text-accent hover:underline flex items-center gap-1 bg-surface-raised px-3 py-1 rounded-full border border-border"
+                className="flex min-h-[36px] items-center gap-1 rounded-full border border-border bg-surface-raised px-3 text-[12px] font-semibold text-accent hover:underline"
               >
-                <span>⏰</span> View Schedule & Timings →
+                <span aria-hidden>⏰</span> View Schedule &amp; Timings →
               </button>
             </div>
 
             {/* Future Day Read-Only Banner */}
             {isFutureDay && (
-              <div className="rounded-xl border border-border bg-surface-raised px-4 py-3 text-[13px] text-text-muted flex items-center justify-between gap-3 mb-4 animate-fade-in">
-                <div className="flex items-center gap-2.5">
-                  <span className="text-lg">🔒</span>
+              <div className="mb-4 flex flex-col gap-2 rounded-xl border border-border bg-surface-raised px-4 py-3 text-[13px] text-text-muted animate-fade-in sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+                <div className="flex items-start gap-2.5 sm:items-center">
+                  <span aria-hidden className="text-lg leading-none">🔒</span>
                   <span>
-                    <strong>Day {day} is upcoming.</strong> You are currently on <strong>Day {currentDay}</strong>. You can preview all upcoming tasks below in Read-Only mode.
+                    <strong>Day {day} is upcoming.</strong> You are currently on{" "}
+                    <strong>Day {currentDay}</strong>. You can preview all upcoming tasks below in
+                    Read-Only mode.
                   </span>
                 </div>
                 <button
                   onClick={() => setSelectedDay(currentDay)}
-                  className="text-[12px] font-semibold text-accent hover:underline shrink-0"
+                  className="min-h-[36px] shrink-0 self-start text-[12px] font-semibold text-accent hover:underline sm:self-auto"
                 >
                   Go to Day {currentDay} →
                 </button>
@@ -344,14 +413,22 @@ export default function DashboardPage() {
                 />
               ))}
             </div>
+
+            {/* Notes for this day */}
+            <DayNotes
+              userId={user.id}
+              day={day}
+              initialValue={selectedRow?.notes || ""}
+              isFuture={isFutureDay}
+            />
           </section>
         </div>
 
         {/* ── RIGHT COLUMN / SIDEBAR: Progress Analytics, Domain Mastery & Squad (4 cols) ── */}
-        <div className="lg:col-span-4 flex flex-col gap-6">
+        <div className="flex flex-col gap-6 lg:col-span-4">
           {/* Sprint Overview Card */}
           <div
-            className="rounded-xl border border-border bg-surface p-5 animate-fade-in-up"
+            className="rounded-xl border border-border bg-surface p-4 animate-fade-in-up sm:p-5"
             style={{ boxShadow: "var(--shadow-sm)" }}
           >
             <div className="flex items-center justify-between pb-3 border-b border-border-soft">
@@ -388,7 +465,7 @@ export default function DashboardPage() {
 
           {/* Subject / Domain Mastery Breakdown */}
           <div
-            className="rounded-xl border border-border bg-surface p-5 animate-fade-in-up"
+            className="rounded-xl border border-border bg-surface p-4 animate-fade-in-up sm:p-5"
             style={{ boxShadow: "var(--shadow-sm)", animationDelay: "0.1s" }}
           >
             <div className="flex items-center justify-between pb-3 border-b border-border-soft">
@@ -412,8 +489,8 @@ export default function DashboardPage() {
                 ] as TaskKey[]
               ).map((key) => {
                 const count = catStats[key] || 0;
-                const totalTarget = key === "gpp_project" ? 3 : 21;
-                const pct = Math.min(100, Math.round((count / totalTarget) * 100));
+                const totalTarget = plan.plannedFor(key);
+                const pct = totalTarget > 0 ? Math.min(100, Math.round((count / totalTarget) * 100)) : 0;
                 return (
                   <div key={key} className="flex flex-col gap-1">
                     <div className="flex items-center justify-between text-[12.5px]">
@@ -439,7 +516,7 @@ export default function DashboardPage() {
           {/* Quick Squad Leaderboard Widget */}
           {topSquad.length > 0 && (
             <div
-              className="rounded-xl border border-border bg-surface p-5 animate-fade-in-up"
+              className="rounded-xl border border-border bg-surface p-4 animate-fade-in-up sm:p-5"
               style={{ boxShadow: "var(--shadow-sm)", animationDelay: "0.15s" }}
             >
               <div className="flex items-center justify-between pb-3 border-b border-border-soft">
@@ -486,7 +563,7 @@ export default function DashboardPage() {
                             {dName}
                           </span>
                           {isYou && (
-                            <span className="rounded-full px-1.5 py-0.2 text-[9px] font-bold text-white bg-accent">
+                            <span className="rounded-full px-1.5 py-0.5 text-[9px] font-bold text-white bg-accent">
                               You
                             </span>
                           )}
@@ -507,6 +584,7 @@ export default function DashboardPage() {
 
       {/* Schedule & Rules Modal */}
       <ScheduleRulesModal
+        plan={plan}
         isOpen={scheduleOpen}
         onClose={() => setScheduleOpen(false)}
       />

@@ -1,16 +1,38 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useCallback, useRef, useSyncExternalStore } from "react";
+
+// The `.dark` class on <html> is the source of truth (an inline script in the
+// root layout sets it before paint). Subscribing to it here keeps the icons in
+// sync without a mount effect or a hydration mismatch.
+const listeners = new Set<() => void>();
+
+function subscribe(listener: () => void) {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}
+
+function getSnapshot() {
+  return document.documentElement.classList.contains("dark");
+}
+
+function getServerSnapshot() {
+  return false;
+}
+
+function applyTheme(nextIsDark: boolean) {
+  document.documentElement.classList.toggle("dark", nextIsDark);
+  try {
+    localStorage.setItem("theme", nextIsDark ? "dark" : "light");
+  } catch {
+    // private mode — the class still applies for this session
+  }
+  listeners.forEach((l) => l());
+}
 
 export default function ThemeToggle() {
-  const [isDark, setIsDark] = useState(false);
-  const [mounted, setMounted] = useState(false);
+  const isDark = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
   const btnRef = useRef<HTMLButtonElement>(null);
-
-  useEffect(() => {
-    setMounted(true);
-    setIsDark(document.documentElement.classList.contains("dark"));
-  }, []);
 
   const toggle = useCallback(() => {
     const btn = btnRef.current;
@@ -27,25 +49,20 @@ export default function ThemeToggle() {
       Math.max(y, window.innerHeight - y)
     );
 
-    const isCurrentlyDark = document.documentElement.classList.contains("dark");
-    const nextIsDark = !isCurrentlyDark;
+    const nextIsDark = !document.documentElement.classList.contains("dark");
 
     // Fallback for browsers that don't support View Transitions API or if user prefers reduced motion
     if (
       !document.startViewTransition ||
       window.matchMedia("(prefers-reduced-motion: reduce)").matches
     ) {
-      setIsDark(nextIsDark);
-      document.documentElement.classList.toggle("dark", nextIsDark);
-      localStorage.setItem("theme", nextIsDark ? "dark" : "light");
+      applyTheme(nextIsDark);
       return;
     }
 
     // Start View Transition
     const transition = document.startViewTransition(() => {
-      setIsDark(nextIsDark);
-      document.documentElement.classList.toggle("dark", nextIsDark);
-      localStorage.setItem("theme", nextIsDark ? "dark" : "light");
+      applyTheme(nextIsDark);
     });
 
     // Hardware-accelerated circular reveal via Web Animations API directly on the pseudoElement
@@ -67,22 +84,11 @@ export default function ThemeToggle() {
     });
   }, []);
 
-  if (!mounted) {
-    return (
-      <button
-        className="relative grid h-9 w-9 place-items-center rounded-full border border-border bg-surface text-text-muted"
-        aria-label="Toggle theme"
-      >
-        <span className="h-4 w-4" />
-      </button>
-    );
-  }
-
   return (
     <button
       ref={btnRef}
       onClick={toggle}
-      className="group relative grid h-9 w-9 place-items-center rounded-full border border-border bg-surface text-text-muted transition-all duration-300 hover:border-accent hover:text-accent hover:shadow-[0_0_12px_var(--accent-soft)]"
+      className="group relative grid h-10 w-10 place-items-center rounded-full border border-border bg-surface text-text-muted transition-all duration-300 hover:border-accent hover:text-accent hover:shadow-[0_0_12px_var(--accent-soft)]"
       aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
       title={isDark ? "Switch to light mode" : "Switch to dark mode"}
     >

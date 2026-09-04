@@ -3,14 +3,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useCurrentUser } from "@/lib/useCurrentUser";
-import { listUsers, getAllProgress } from "@/lib/db";
+import { listUsers, getAllProgress, subscribeToAllProgress, subscribeToUsers } from "@/lib/db";
 import type { UserRow, ProgressRow } from "@/lib/types";
 import {
   TASK_LABELS,
   TOTAL_DAYS,
-  TOTAL_TASKS,
-  getDayPlan,
-  type TaskKey,
+  buildSprintPlan,
 } from "@/lib/plan";
 import { dayNumberFor, formatDateShort } from "@/lib/date";
 import {
@@ -18,10 +16,10 @@ import {
   overallPercent,
   currentStreak,
   rowForDay,
-  isDayComplete,
 } from "@/lib/stats";
 import ProgressBar from "@/components/ProgressBar";
 import DayRail from "@/components/DayRail";
+import CheerButton from "@/components/CheerButton";
 
 interface Ranked {
   user: UserRow;
@@ -71,20 +69,49 @@ export default function SquadPage() {
     };
   }, [user]);
 
+  // Live updates
+  useEffect(() => {
+    if (!user) return;
+    const unsubProgress = subscribeToAllProgress((evt) => {
+      if (evt.type === "DELETE") {
+        setAllProgress((prev) => prev.filter((r) => r.id !== evt.old?.id));
+        return;
+      }
+      const row = evt.row;
+      if (!row) return;
+      setAllProgress((prev) => {
+        const idx = prev.findIndex((r) => r.id === row.id);
+        if (idx === -1) return [...prev, row];
+        const copy = prev.slice();
+        copy[idx] = row;
+        return copy;
+      });
+    });
+    const unsubUsers = subscribeToUsers(() => {
+      listUsers().then((u) => setUsers(u)).catch(() => {});
+    });
+    return () => {
+      unsubProgress();
+      unsubUsers();
+    };
+  }, [user]);
+
   const ranked: Ranked[] = useMemo(() => {
     return users
       .map((u) => {
         const rows = allProgress.filter((p) => p.user_id === u.id);
+        // Members start on different weekdays, so each gets their own calendar.
+        const plan = buildSprintPlan(u.start_date);
         const day = dayNumberFor(u.start_date, TOTAL_DAYS);
         const todayRow = rowForDay(rows, day);
-        const todayTotal = day % 7 === 0 ? 8 : 7;
+        const todayTotal = plan.taskKeysFor(day).length;
         return {
           user: u,
           currentDay: day,
-          todayChecked: countCheckedForDay(todayRow, day),
+          todayChecked: countCheckedForDay(plan, todayRow, day),
           todayTotal,
-          overallPct: overallPercent(rows),
-          streak: currentStreak(rows),
+          overallPct: overallPercent(plan, rows),
+          streak: currentStreak(plan, rows),
         };
       })
       .sort((a, b) => b.overallPct - a.overallPct || b.streak - a.streak);
@@ -123,19 +150,25 @@ export default function SquadPage() {
     return inspectUser ? dayNumberFor(inspectUser.start_date, TOTAL_DAYS) : 1;
   }, [inspectUser]);
 
+  // The inspected member's own calendar — their Sundays (daytime timetable plus
+  // the 8th GPP task) depend on the weekday they started on, not ours.
+  const inspectPlan = useMemo(() => {
+    return buildSprintPlan(inspectUser?.start_date);
+  }, [inspectUser?.start_date]);
+
   const inspectDayPlan = useMemo(() => {
-    return getDayPlan(inspectSelectedDay);
-  }, [inspectSelectedDay]);
+    return inspectPlan.getDay(inspectSelectedDay);
+  }, [inspectPlan, inspectSelectedDay]);
 
   const inspectSelectedRow = inspectProgressByDay.get(inspectSelectedDay);
-  const inspectCheckedCount = countCheckedForDay(inspectSelectedRow, inspectSelectedDay);
+  const inspectCheckedCount = countCheckedForDay(inspectPlan, inspectSelectedRow, inspectSelectedDay);
   const inspectTotalTasks = inspectDayPlan ? inspectDayPlan.taskKeys.length : 7;
-  const inspectOverallPct = overallPercent(inspectUserRows);
-  const inspectStreak = currentStreak(inspectUserRows);
+  const inspectOverallPct = overallPercent(inspectPlan, inspectUserRows);
+  const inspectStreak = currentStreak(inspectPlan, inspectUserRows);
 
   if (userLoading || !user) {
     return (
-      <div className="flex min-h-[60vh] items-center justify-center">
+      <div className="flex min-h-[60dvh] items-center justify-center">
         <div className="flex flex-col items-center gap-3">
           <svg className="h-8 w-8 animate-spin text-accent" viewBox="0 0 24 24" fill="none">
             <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeDasharray="32" strokeLinecap="round" />
@@ -147,14 +180,16 @@ export default function SquadPage() {
   }
 
   return (
-    <div className="flex flex-col gap-8 animate-fade-in">
+    <div className="flex flex-col gap-6 animate-fade-in sm:gap-8">
       {/* Header */}
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="text-[12px] font-semibold uppercase tracking-widest text-text-faint">
             Shared Room Sprint Leaderboard
           </p>
-          <h1 className="font-display text-[32px] font-bold text-text">Squad Leaderboard</h1>
+          <h1 className="font-display text-[26px] font-bold text-text sm:text-[32px]">
+            Squad Leaderboard
+          </h1>
         </div>
         <span
           className="badge text-white"
@@ -165,64 +200,58 @@ export default function SquadPage() {
       </div>
 
       {/* ── SQUAD ROOM TOP STATS (Widescreen Row) ── */}
-      <section className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <div
-          className="rounded-xl border border-border bg-surface p-4 transition-all duration-200"
-          style={{ boxShadow: "var(--shadow-sm)" }}
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-text-faint">
-              Total Sprinters
-            </span>
-            <span className="text-xl">👥</span>
+      <section className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+        {[
+          {
+            label: "Total Sprinters",
+            icon: "👥",
+            value: `${squadStats.total}`,
+            sub: "Active members in room",
+            tone: "text-text",
+          },
+          {
+            label: "Room Average Progress",
+            icon: "📈",
+            value: `${squadStats.avgPct}%`,
+            sub: "Average completion rate",
+            tone: "text-accent",
+          },
+          {
+            label: "Highest Room Streak",
+            icon: "🔥",
+            value: `${squadStats.maxStreak} Days`,
+            sub: "Top streak holder",
+            tone: "text-warn",
+          },
+          {
+            label: "Finished Today",
+            icon: "🎯",
+            value: `${squadStats.completedToday} of ${squadStats.total}`,
+            sub: "Members 100% done today",
+            tone: "text-done",
+          },
+        ].map((stat, i) => (
+          <div
+            key={stat.label}
+            className="stagger-item rounded-xl border border-border bg-surface p-3.5 transition-all duration-200 sm:p-4"
+            style={{ boxShadow: "var(--shadow-sm)", animationDelay: `${i * 0.05}s` }}
+          >
+            <div className="flex items-start justify-between gap-2">
+              <span className="text-[10.5px] font-semibold uppercase tracking-wider text-text-faint sm:text-[11px]">
+                {stat.label}
+              </span>
+              <span aria-hidden className="text-lg leading-none sm:text-xl">
+                {stat.icon}
+              </span>
+            </div>
+            <p className={`mt-2 text-[18px] font-bold leading-tight sm:text-[22px] ${stat.tone}`}>
+              {stat.value}
+            </p>
+            <p className="mt-1 text-[11.5px] leading-snug text-text-muted sm:text-[12px]">
+              {stat.sub}
+            </p>
           </div>
-          <p className="mt-2 text-[22px] font-bold text-text">{squadStats.total}</p>
-          <p className="mt-0.5 text-[12px] text-text-muted">Active members in room</p>
-        </div>
-
-        <div
-          className="rounded-xl border border-border bg-surface p-4 transition-all duration-200"
-          style={{ boxShadow: "var(--shadow-sm)" }}
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-text-faint">
-              Room Average Progress
-            </span>
-            <span className="text-xl">📈</span>
-          </div>
-          <p className="mt-2 text-[22px] font-bold text-accent">{squadStats.avgPct}%</p>
-          <p className="mt-0.5 text-[12px] text-text-muted">Average completion rate</p>
-        </div>
-
-        <div
-          className="rounded-xl border border-border bg-surface p-4 transition-all duration-200"
-          style={{ boxShadow: "var(--shadow-sm)" }}
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-text-faint">
-              Highest Room Streak
-            </span>
-            <span className="text-xl">🔥</span>
-          </div>
-          <p className="mt-2 text-[22px] font-bold text-warn">{squadStats.maxStreak} Days</p>
-          <p className="mt-0.5 text-[12px] text-text-muted">Top streak holder</p>
-        </div>
-
-        <div
-          className="rounded-xl border border-border bg-surface p-4 transition-all duration-200"
-          style={{ boxShadow: "var(--shadow-sm)" }}
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-text-faint">
-              Finished Today
-            </span>
-            <span className="text-xl">🎯</span>
-          </div>
-          <p className="mt-2 text-[22px] font-bold text-done">
-            {squadStats.completedToday} of {squadStats.total}
-          </p>
-          <p className="mt-0.5 text-[12px] text-text-muted">Members 100% done today</p>
-        </div>
+        ))}
       </section>
 
       {errorMsg && (
@@ -232,7 +261,7 @@ export default function SquadPage() {
       )}
 
       {loading ? (
-        <div className="flex min-h-[30vh] items-center justify-center">
+        <div className="flex min-h-[30dvh] items-center justify-center">
           <svg className="h-8 w-8 animate-spin text-accent" viewBox="0 0 24 24" fill="none">
             <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeDasharray="32" strokeLinecap="round" />
           </svg>
@@ -256,7 +285,7 @@ export default function SquadPage() {
                     openSprintDetails(r.user);
                   }
                 }}
-                className={`stagger-item group flex cursor-pointer items-center gap-4 rounded-xl border p-4.5 transition-all duration-200 hover:border-accent hover:scale-[1.005] ${
+                className={`stagger-item group flex cursor-pointer flex-wrap items-center gap-3 rounded-xl border p-3.5 transition-all duration-200 hover:border-accent hover:scale-[1.005] sm:flex-nowrap sm:gap-4 sm:p-4.5 ${
                   isYou
                     ? "border-accent/40 bg-accent-soft"
                     : "border-border bg-surface"
@@ -265,9 +294,9 @@ export default function SquadPage() {
                 title={`Click to view ${displayName}'s full sprint`}
               >
                 {/* Rank */}
-                <span className="w-9 shrink-0 text-center">
+                <span className="w-7 shrink-0 text-center sm:w-9">
                   {isTop3 ? (
-                    <span className="text-2xl">{RANK_MEDALS[i]}</span>
+                    <span className="text-xl sm:text-2xl">{RANK_MEDALS[i]}</span>
                   ) : (
                     <span className="text-[15px] font-bold text-text-faint">
                       {i + 1}
@@ -278,7 +307,7 @@ export default function SquadPage() {
                 {/* Avatar */}
                 <span
                   aria-hidden
-                  className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-[15px] font-bold text-white transition-transform duration-200 group-hover:scale-105"
+                  className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-[15px] font-bold text-white transition-transform duration-200 group-hover:scale-105 sm:h-11 sm:w-11"
                   style={{
                     background: isTop3
                       ? RANK_COLORS[i]
@@ -290,8 +319,8 @@ export default function SquadPage() {
 
                 {/* Info */}
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="truncate text-[16px] font-semibold text-text group-hover:text-accent transition-colors">
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                    <span className="truncate text-[15px] font-semibold text-text transition-colors group-hover:text-accent sm:text-[16px]">
                       {displayName}
                     </span>
                     {r.user.nickname && (
@@ -324,30 +353,43 @@ export default function SquadPage() {
                   </div>
 
                   {/* Metadata */}
-                  <div className="mt-2 flex flex-wrap items-center gap-4 text-[11.5px] text-text-faint">
+                  <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11.5px] text-text-faint sm:gap-x-4">
                     <span>📅 Day {r.currentDay} of {TOTAL_DAYS}</span>
                     <span>🗓️ Started {formatDateShort(r.user.start_date)}</span>
                     {r.streak > 0 && (
                       <span className="font-semibold text-warn">🔥 {r.streak}-day streak</span>
                     )}
-                    <span className="text-accent font-medium sm:ml-auto group-hover:underline">
+                    <span className="font-medium text-accent group-hover:underline sm:ml-auto">
                       View full sprint →
                     </span>
                   </div>
                 </div>
 
-                {/* Today's score */}
-                <div className="shrink-0 text-right pr-2">
-                  <p
-                    className={`text-[18px] font-bold ${
-                      r.todayChecked === r.todayTotal ? "text-done" : "text-text"
-                    }`}
-                  >
-                    {r.todayChecked}/{r.todayTotal}
-                  </p>
-                  <p className="text-[10px] font-semibold uppercase tracking-wide text-text-faint">
-                    today
-                  </p>
+                {/* Today's score + cheer — a full-width strip below the row on phones */}
+                <div className="flex w-full items-center justify-between gap-3 border-t border-border-soft pt-2.5 sm:w-auto sm:border-0 sm:pt-0">
+                  <div className="shrink-0 text-left sm:pr-2 sm:text-right">
+                    <p
+                      className={`text-[18px] font-bold ${
+                        r.todayChecked === r.todayTotal ? "text-done" : "text-text"
+                      }`}
+                    >
+                      {r.todayChecked}/{r.todayTotal}
+                    </p>
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-text-faint">
+                      today
+                    </p>
+                  </div>
+
+                  {/* Cheer button (hidden on self) */}
+                  {!isYou && (
+                    <div onClick={(e) => e.stopPropagation()}>
+                      <CheerButton
+                        fromUserId={user.id}
+                        toUserId={r.user.id}
+                        toName={displayName}
+                      />
+                    </div>
+                  )}
                 </div>
               </li>
             );
@@ -358,7 +400,7 @@ export default function SquadPage() {
       {/* ── SPRINT DETAILS MODAL ── */}
       {inspectUser && inspectDayPlan && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4"
           role="dialog"
           aria-modal="true"
         >
@@ -371,22 +413,22 @@ export default function SquadPage() {
 
           {/* Modal Container */}
           <div
-            className="glass-card relative z-10 w-full max-w-3xl max-h-[90vh] overflow-y-auto p-6 animate-fade-in-up"
+            className="glass-card relative z-10 max-h-[90dvh] w-full max-w-3xl overflow-y-auto p-4 animate-fade-in-up sm:p-6"
             style={{ boxShadow: "var(--shadow-lg)" }}
           >
             {/* Modal Header */}
-            <div className="flex items-center justify-between pb-4 border-b border-border-soft">
-              <div className="flex items-center gap-3">
+            <div className="flex items-start justify-between gap-3 border-b border-border-soft pb-4">
+              <div className="flex min-w-0 items-center gap-3">
                 <span
                   aria-hidden
-                  className="grid h-10 w-10 place-items-center rounded-full text-[15px] font-bold text-white shadow-sm"
+                  className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-[15px] font-bold text-white shadow-sm"
                   style={{ background: "var(--accent-gradient)" }}
                 >
                   {(inspectUser.nickname || inspectUser.name).slice(0, 1).toUpperCase()}
                 </span>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h2 className="font-display text-[18px] font-bold text-text">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                    <h2 className="font-display text-[17px] font-bold text-text sm:text-[18px]">
                       {inspectUser.nickname || inspectUser.name}&apos;s Sprint
                     </h2>
                     {inspectUser.nickname && (
@@ -411,7 +453,7 @@ export default function SquadPage() {
 
               <button
                 onClick={() => setInspectUser(null)}
-                className="grid h-8 w-8 place-items-center rounded-full text-text-muted hover:bg-surface-raised hover:text-text transition-colors"
+                className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-text-muted transition-colors hover:bg-surface-raised hover:text-text"
                 aria-label="Close details"
               >
                 <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
@@ -426,28 +468,28 @@ export default function SquadPage() {
             </div>
 
             {/* Member Stats Summary */}
-            <div className="mt-4 grid grid-cols-3 gap-3">
+            <div className="mt-4 grid grid-cols-3 gap-2 sm:gap-3">
               <div
-                className="rounded-xl border border-border bg-surface p-3 text-center"
+                className="rounded-xl border border-border bg-surface p-2.5 text-center sm:p-3"
                 style={{ boxShadow: "var(--shadow-sm)" }}
               >
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-text-faint">
+                <p className="text-[9.5px] font-semibold uppercase tracking-wider text-text-faint sm:text-[10px]">
                   Overall Completion
                 </p>
-                <p className="mt-1 text-[18px] font-bold text-accent">
+                <p className="mt-1 text-[17px] font-bold text-accent sm:text-[18px]">
                   {inspectOverallPct}%
                 </p>
               </div>
 
               <div
-                className="rounded-xl border border-border bg-surface p-3 text-center"
+                className="rounded-xl border border-border bg-surface p-2.5 text-center sm:p-3"
                 style={{ boxShadow: "var(--shadow-sm)" }}
               >
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-text-faint">
+                <p className="text-[9.5px] font-semibold uppercase tracking-wider text-text-faint sm:text-[10px]">
                   Day {inspectSelectedDay} Done
                 </p>
                 <p
-                  className={`mt-1 text-[18px] font-bold ${
+                  className={`mt-1 text-[17px] font-bold sm:text-[18px] ${
                     inspectCheckedCount === inspectTotalTasks ? "text-done" : "text-text"
                   }`}
                 >
@@ -456,13 +498,13 @@ export default function SquadPage() {
               </div>
 
               <div
-                className="rounded-xl border border-border bg-surface p-3 text-center"
+                className="rounded-xl border border-border bg-surface p-2.5 text-center sm:p-3"
                 style={{ boxShadow: "var(--shadow-sm)" }}
               >
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-text-faint">
+                <p className="text-[9.5px] font-semibold uppercase tracking-wider text-text-faint sm:text-[10px]">
                   Current Streak
                 </p>
-                <p className="mt-1 text-[18px] font-bold text-warn">
+                <p className="mt-1 text-[17px] font-bold text-warn sm:text-[18px]">
                   {inspectStreak > 0 ? `🔥 ${inspectStreak}d` : "None"}
                 </p>
               </div>
@@ -474,6 +516,7 @@ export default function SquadPage() {
                 Select a day to inspect
               </p>
               <DayRail
+                plan={inspectPlan}
                 progressByDay={inspectProgressByDay}
                 currentDay={inspectCurrentDay}
                 selectedDay={inspectSelectedDay}
@@ -482,19 +525,19 @@ export default function SquadPage() {
             </div>
 
             {/* Day Title */}
-            <div className="mt-5 mb-3 flex items-center justify-between">
+            <div className="mb-3 mt-5 flex flex-wrap items-center justify-between gap-2">
               <div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <span className="text-[11px] font-semibold uppercase tracking-widest text-text-faint">
                     {inspectSelectedDay === inspectCurrentDay ? "Current Day" : inspectDayPlan.weekday} · Week {inspectDayPlan.week}
                   </span>
                   {inspectDayPlan.isSunday && (
-                    <span className="badge text-white bg-accent font-bold text-[9.5px]">
+                    <span className="badge bg-accent text-[9.5px] font-bold text-white">
                       Sunday + GPP Projects
                     </span>
                   )}
                 </div>
-                <h3 className="font-display text-[20px] font-bold text-text">
+                <h3 className="font-display text-[18px] font-bold text-text sm:text-[20px]">
                   Day {inspectSelectedDay} Checklist
                 </h3>
               </div>
@@ -518,7 +561,7 @@ export default function SquadPage() {
                 return (
                   <div
                     key={key}
-                    className={`flex items-start gap-3.5 rounded-xl border p-3.5 transition-colors ${
+                    className={`flex items-start gap-3 rounded-xl border p-3 transition-colors sm:gap-3.5 sm:p-3.5 ${
                       isChecked
                         ? "border-done/40 bg-done-soft"
                         : "border-border bg-surface"
@@ -554,7 +597,7 @@ export default function SquadPage() {
                           {TASK_LABELS[key]}
                         </span>
                         {timing && (
-                          <span className="rounded-full bg-surface-raised px-1.5 py-0.2 text-[10px] font-semibold text-text-faint flex items-center gap-1 border border-border-soft">
+                          <span className="flex items-center gap-1 rounded-full border border-border-soft bg-surface-raised px-1.5 py-0.5 text-[10px] font-semibold text-text-faint">
                             <span>⏰ {timing.time}</span>
                           </span>
                         )}
@@ -572,14 +615,16 @@ export default function SquadPage() {
 
                     {isChecked ? (
                       <span className="shrink-0 text-[11px] font-semibold text-done">
-                        ✓ Completed
+                        <span aria-hidden>✓</span>
+                        <span className="hidden sm:inline"> Completed</span>
                       </span>
                     ) : inspectSelectedDay > inspectCurrentDay ? (
-                      <span className="shrink-0 rounded-md bg-surface-raised px-2 py-0.5 text-[10.5px] font-medium text-text-faint border border-border-soft">
-                        🔒 Future Day
+                      <span className="shrink-0 rounded-md border border-border-soft bg-surface-raised px-2 py-0.5 text-[10.5px] font-medium text-text-faint">
+                        <span aria-hidden>🔒</span>
+                        <span className="hidden sm:inline"> Future Day</span>
                       </span>
                     ) : (
-                      <span className="shrink-0 text-[11px] font-medium text-text-faint">
+                      <span className="hidden shrink-0 text-[11px] font-medium text-text-faint sm:block">
                         Pending
                       </span>
                     )}
@@ -589,11 +634,11 @@ export default function SquadPage() {
             </div>
 
             {/* Modal Close Button */}
-            <div className="mt-6 pt-4 border-t border-border-soft flex justify-end">
+            <div className="mt-6 flex justify-end border-t border-border-soft pt-4">
               <button
                 type="button"
                 onClick={() => setInspectUser(null)}
-                className="btn-primary text-[13px] px-5 py-2"
+                className="btn-primary w-full text-[13px] sm:w-auto"
               >
                 Back to Squad
               </button>

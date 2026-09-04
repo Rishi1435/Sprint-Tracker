@@ -1,9 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCurrentUser } from "@/lib/useCurrentUser";
+import { NAV_ITEMS } from "@/lib/nav";
+import { buildSprintPlan } from "@/lib/plan";
 import ThemeToggle from "./ThemeToggle";
 import ProfileModal from "./ProfileModal";
 import ScheduleRulesModal from "./ScheduleRulesModal";
@@ -16,8 +18,11 @@ export default function NavBar() {
 
   const isActive = (href: string) => pathname === href;
 
+  const plan = useMemo(() => buildSprintPlan(user?.start_date), [user?.start_date]);
+
   const displayName = user?.nickname || user?.name || "";
   const initial = (user?.nickname || user?.name || "?").slice(0, 1).toUpperCase();
+  const signedIn = !loading && Boolean(user);
 
   return (
     <>
@@ -27,11 +32,12 @@ export default function NavBar() {
           background: "var(--surface-glass)",
           backdropFilter: "blur(20px) saturate(1.6)",
           WebkitBackdropFilter: "blur(20px) saturate(1.6)",
+          paddingTop: "env(safe-area-inset-top)",
         }}
       >
-        <div className="mx-auto flex w-full max-w-[1600px] items-center justify-between px-4 sm:px-8 xl:px-12 py-3.5">
+        <div className="mx-auto flex w-full max-w-[1600px] items-center justify-between gap-2 px-4 sm:px-8 xl:px-12 py-3">
           {/* Logo */}
-          <Link href="/" className="group flex items-center gap-2.5">
+          <Link href="/" className="group flex shrink-0 items-center gap-2.5">
             <span
               aria-hidden
               className="grid h-8 w-8 place-items-center rounded-lg text-[13px] font-bold text-white transition-transform duration-300 group-hover:scale-110"
@@ -39,58 +45,53 @@ export default function NavBar() {
             >
               21
             </span>
-            <span className="font-display text-[16px] font-semibold tracking-tight text-text">
+            <span className="font-display text-[15px] font-semibold tracking-tight text-text sm:text-[16px]">
               Sprint Room
             </span>
           </Link>
 
-          <div className="flex items-center gap-2.5">
-            {/* Navigation pills */}
-            {!loading && user && (
-              <nav className="flex items-center gap-1 rounded-full border border-border bg-surface p-1 shadow-sm">
-                <Link
-                  href="/dashboard"
-                  className={`rounded-full px-4 py-1.5 text-[13px] font-medium transition-all duration-200 ${
-                    isActive("/dashboard")
-                      ? "text-white shadow-sm"
-                      : "text-text-muted hover:text-text"
-                  }`}
-                  style={isActive("/dashboard") ? { background: "var(--accent-gradient)" } : {}}
-                >
-                  My Plan
-                </Link>
-                <Link
-                  href="/squad"
-                  className={`rounded-full px-4 py-1.5 text-[13px] font-medium transition-all duration-200 ${
-                    isActive("/squad")
-                      ? "text-white shadow-sm"
-                      : "text-text-muted hover:text-text"
-                  }`}
-                  style={isActive("/squad") ? { background: "var(--accent-gradient)" } : {}}
-                >
-                  Squad
-                </Link>
+          <div className="flex items-center gap-1.5 sm:gap-2.5">
+            {/* Navigation pills — the mobile tab bar covers these below `md` */}
+            {signedIn && (
+              <nav className="hidden items-center gap-1 rounded-full border border-border bg-surface p-1 shadow-sm md:flex">
+                {NAV_ITEMS.map((item) => (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    aria-current={isActive(item.href) ? "page" : undefined}
+                    className={`rounded-full px-4 py-1.5 text-[13px] font-medium transition-all duration-200 ${
+                      isActive(item.href)
+                        ? "text-white shadow-sm"
+                        : "text-text-muted hover:text-text"
+                    }`}
+                    style={isActive(item.href) ? { background: "var(--accent-gradient)" } : {}}
+                  >
+                    {item.label}
+                  </Link>
+                ))}
               </nav>
             )}
 
             {/* Schedule & Rules Button */}
-            {!loading && user && (
+            {signedIn && (
               <button
                 onClick={() => setScheduleOpen(true)}
-                className="flex items-center gap-1.5 rounded-full border border-border bg-surface px-3 py-1.5 text-[13px] font-semibold text-text-muted transition-all duration-200 hover:border-accent hover:text-text hover:shadow-sm"
+                className="grid h-10 min-w-[40px] place-items-center rounded-full border border-border bg-surface px-2.5 text-[13px] font-semibold text-text-muted transition-all duration-200 hover:border-accent hover:text-text hover:shadow-sm md:flex md:h-auto md:items-center md:gap-1.5 md:py-1.5"
                 title="View Daily Timetable & Sprint Rules"
+                aria-label="View daily timetable and sprint rules"
               >
-                <span>⏰</span>
-                <span className="hidden md:inline font-medium">Timetable & Rules</span>
+                <span aria-hidden>⏰</span>
+                <span className="hidden lg:inline font-medium">Timetable &amp; Rules</span>
               </button>
             )}
 
             {/* Profile button */}
-            {!loading && user && (
+            {signedIn && (
               <button
                 onClick={() => setProfileOpen(true)}
-                className="flex items-center gap-2 rounded-full border border-border bg-surface px-2.5 py-1.5 text-[13px] text-text-muted transition-all duration-200 hover:border-accent hover:text-text hover:shadow-sm"
+                className="flex min-h-[40px] items-center gap-2 rounded-full border border-border bg-surface px-2 py-1.5 text-[13px] text-text-muted transition-all duration-200 hover:border-accent hover:text-text hover:shadow-sm sm:px-2.5"
                 title="View Profile"
+                aria-label="View your profile"
               >
                 <span
                   aria-hidden
@@ -99,7 +100,9 @@ export default function NavBar() {
                 >
                   {initial}
                 </span>
-                <span className="hidden sm:inline font-medium">{displayName}</span>
+                <span className="hidden max-w-[10ch] truncate font-medium sm:inline">
+                  {displayName}
+                </span>
               </button>
             )}
 
@@ -109,8 +112,10 @@ export default function NavBar() {
         </div>
       </header>
 
-      {/* Schedule & Rules Modal */}
+      {/* Schedule & Rules Modal — the timetable follows the signed-in user's
+          own calendar, so which sprint days are Sundays depends on their start. */}
       <ScheduleRulesModal
+        plan={plan}
         isOpen={scheduleOpen}
         onClose={() => setScheduleOpen(false)}
       />

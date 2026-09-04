@@ -1,4 +1,10 @@
 // The fixed 21-day sprint plan (Revised with timings and GPP project revision on Sundays).
+//
+// The syllabus order is fixed, but the timetable is not: the Sunday schedule
+// (daytime, plus the eighth GPP task) has to land on each user's real calendar
+// Sunday, which depends on the weekday they started on. So nothing here assumes
+// day 7/14/21 is a Sunday — call `buildSprintPlan(startDate)` to resolve a
+// user's plan against their own calendar.
 
 export const TASK_KEYS = [
   "aptitude",
@@ -70,14 +76,16 @@ export const SUNDAY_TIMINGS: Record<TaskKey, { time: string; duration: string }>
 export interface DayPlan {
   day: number;
   week: 1 | 2 | 3;
+  /** The real calendar weekday this sprint day falls on. */
   weekday: string;
+  /** True on real calendar Sundays: daytime timetable, plus the GPP task. */
   isSunday: boolean;
   taskKeys: TaskKey[];
   tasks: Partial<Record<TaskKey, string>>;
   timings: Partial<Record<TaskKey, { time: string; duration: string }>>;
 }
 
-const weekdayNames = [
+export const WEEKDAY_NAMES = [
   "Sunday",
   "Monday",
   "Tuesday",
@@ -85,13 +93,20 @@ const weekdayNames = [
   "Thursday",
   "Friday",
   "Saturday",
-];
+] as const;
 
-function weekdayFor(day: number) {
-  const idx = day % 7;
-  return weekdayNames[idx];
+/** 0 = Sunday … 6 = Saturday, for a local `YYYY-MM-DD` date. */
+export function weekdayOfISO(iso: string): number {
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Date(y, (m ?? 1) - 1, d ?? 1).getDay();
 }
 
+/**
+ * The syllabus in authored order. It was written for a Monday start, so the
+ * `(Mon)`…`(Sun)` annotations below describe that original ordering rather than
+ * any particular user's calendar: the last entry of each week is the review /
+ * mock day, and `buildSprintPlan` re-homes it onto the week's real Sunday.
+ */
 const rawTasksList: Partial<Record<TaskKey, string>>[] = [
   // ── WEEK 1 (Foundation + Start Weak Areas) ──
   // Day 1 (Mon)
@@ -313,31 +328,131 @@ const rawTasksList: Partial<Record<TaskKey, string>>[] = [
   },
 ];
 
-export const PLAN: DayPlan[] = rawTasksList.map((tasks, i) => {
-  const day = i + 1;
-  const isSun = day % 7 === 0;
-  const taskKeys = isSun ? SUNDAY_TASK_KEYS : WEEKDAY_TASK_KEYS;
-  const timings = isSun ? SUNDAY_TIMINGS : WEEKDAY_TIMINGS;
+const WEEKS = 3;
+const DAYS_PER_WEEK = 7;
 
-  return {
-    day,
-    week: (Math.floor((day - 1) / 7) + 1) as 1 | 2 | 3,
-    weekday: weekdayFor(day),
-    isSunday: isSun,
-    taskKeys,
-    tasks,
-    timings,
-  };
-});
+export const TOTAL_DAYS = WEEKS * DAYS_PER_WEEK; // 21
 
-export const TOTAL_DAYS = PLAN.length; // 21
-export const TOTAL_TASKS = PLAN.reduce((acc, d) => acc + d.taskKeys.length, 0); // 150 (18 weekdays * 7 + 3 Sundays * 8)
+/**
+ * 150 — and identical whatever weekday you start on: any seven consecutive days
+ * contain exactly one Sunday, so every sprint week has exactly one 8-task day.
+ */
+export const TOTAL_TASKS =
+  WEEKS * ((DAYS_PER_WEEK - 1) * WEEKDAY_TASK_KEYS.length + SUNDAY_TASK_KEYS.length);
 
-export function getDayPlan(day: number): DayPlan | undefined {
-  return PLAN.find((d) => d.day === day);
+interface WeekSyllabus {
+  /** Six weekday templates, handed out in order to the week's non-Sunday days. */
+  weekdays: Partial<Record<TaskKey, string>>[];
+  /** The review / mock day, which always lands on the week's real Sunday. */
+  review: Partial<Record<TaskKey, string>>;
 }
 
-export const SPRINT_TIMETABLE_WEEKDAYS = [
+const WEEK_SYLLABUS: WeekSyllabus[] = Array.from({ length: WEEKS }, (_, w) => {
+  const week = rawTasksList.slice(w * DAYS_PER_WEEK, (w + 1) * DAYS_PER_WEEK);
+  return { weekdays: week.slice(0, DAYS_PER_WEEK - 1), review: week[DAYS_PER_WEEK - 1] };
+});
+
+function buildDays(startWeekday: number): DayPlan[] {
+  const days: DayPlan[] = [];
+  for (let w = 0; w < WEEKS; w++) {
+    const { weekdays, review } = WEEK_SYLLABUS[w];
+    let nextWeekday = 0;
+    for (let offset = 0; offset < DAYS_PER_WEEK; offset++) {
+      const day = w * DAYS_PER_WEEK + offset + 1;
+      const dow = (startWeekday + day - 1) % 7;
+      const isSunday = dow === 0;
+      days.push({
+        day,
+        week: (w + 1) as 1 | 2 | 3,
+        weekday: WEEKDAY_NAMES[dow],
+        isSunday,
+        taskKeys: isSunday ? SUNDAY_TASK_KEYS : WEEKDAY_TASK_KEYS,
+        // Exactly one of any seven consecutive days is a Sunday, so the six
+        // weekday templates always line up with the six remaining days.
+        tasks: isSunday ? review : weekdays[nextWeekday++],
+        timings: isSunday ? SUNDAY_TIMINGS : WEEKDAY_TIMINGS,
+      });
+    }
+  }
+  return days;
+}
+
+/**
+ * The 21-day plan resolved against one user's calendar. Which sprint days are
+ * Sundays — and so which get the daytime timetable and the eighth GPP task —
+ * depends entirely on the weekday their sprint started on, and squad members
+ * start on different days, so this is always per-user.
+ */
+export interface SprintPlan {
+  /** 0 = Sunday … 6 = Saturday: the weekday sprint day 1 falls on. */
+  readonly startWeekday: number;
+  readonly days: DayPlan[];
+  /** Sprint day numbers falling on a Sunday — one per week, ascending. */
+  readonly sundayDays: number[];
+  getDay(day: number): DayPlan | undefined;
+  isSunday(day: number): boolean;
+  /** The keys scheduled on a day: 8 on Sundays, 7 otherwise. */
+  taskKeysFor(day: number): TaskKey[];
+  /** How many days of the sprint schedule a given subject. */
+  plannedFor(key: TaskKey): number;
+}
+
+function makePlan(startWeekday: number): SprintPlan {
+  const days = buildDays(startWeekday);
+  const byDay = new Map(days.map((d) => [d.day, d]));
+  const planned = new Map<TaskKey, number>(
+    TASK_KEYS.map((k) => [k, days.reduce((acc, d) => acc + (d.taskKeys.includes(k) ? 1 : 0), 0)])
+  );
+
+  return {
+    startWeekday,
+    days,
+    sundayDays: days.filter((d) => d.isSunday).map((d) => d.day),
+    getDay: (day) => byDay.get(day),
+    isSunday: (day) => byDay.get(day)?.isSunday ?? false,
+    taskKeysFor: (day) => byDay.get(day)?.taskKeys ?? WEEKDAY_TASK_KEYS,
+    plannedFor: (key) => planned.get(key) ?? 0,
+  };
+}
+
+/**
+ * Plans differ only by start weekday, so there are seven distinct ones at most.
+ * Caching them keeps this callable straight from a component render.
+ */
+const planCache = new Map<number, SprintPlan>();
+
+export function sprintPlanForStartWeekday(startWeekday: number): SprintPlan {
+  const dow = ((Math.trunc(startWeekday) % 7) + 7) % 7;
+  let plan = planCache.get(dow);
+  if (!plan) {
+    plan = makePlan(dow);
+    planCache.set(dow, plan);
+  }
+  return plan;
+}
+
+/**
+ * A user's plan, keyed off the date they started. Before they start there's no
+ * start date to align to, so we assume today — which is the date their first
+ * tick will record anyway.
+ */
+export function buildSprintPlan(startDateISO?: string | null): SprintPlan {
+  return sprintPlanForStartWeekday(
+    startDateISO ? weekdayOfISO(startDateISO) : new Date().getDay()
+  );
+}
+
+/** A single row of the daily timetable. */
+export type SlotType = "study" | "break" | "rest";
+
+export interface TimetableSlot {
+  time: string;
+  title: string;
+  duration: string;
+  type: SlotType;
+}
+
+export const SPRINT_TIMETABLE_WEEKDAYS: TimetableSlot[] = [
   { time: "6:00 – 7:30 PM", title: "Rest (post-college)", duration: "1h30m", type: "rest" },
   { time: "7:30 – 7:55 PM", title: "Aptitude", duration: "25 min", type: "study" },
   { time: "7:55 – 8:20 PM", title: "Reasoning", duration: "25 min", type: "study" },
@@ -351,7 +466,7 @@ export const SPRINT_TIMETABLE_WEEKDAYS = [
   { time: "12:00 AM", title: "Sleep", duration: "~6h30m", type: "rest" },
 ];
 
-export const SPRINT_TIMETABLE_SUNDAY = [
+export const SPRINT_TIMETABLE_SUNDAY: TimetableSlot[] = [
   { time: "7:30 AM", title: "Wake", duration: "—", type: "rest" },
   { time: "9:00 – 10:00 AM", title: "Full mock: Aptitude + Reasoning + Verbal (timed)", duration: "60 min", type: "study" },
   { time: "10:00 – 10:15 AM", title: "Break", duration: "15 min", type: "break" },

@@ -35,6 +35,19 @@
   --radius-xl: 24px;
   --transition-base: 200ms cubic-bezier(0.4, 0, 0.2, 1);
   --transition-spring: 300ms cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* Space taken up by the mobile tab bar, so page content and the floating
+     study timer can stay clear of it. Mirrors BottomNav's own height:
+     min-h-[56px] plus whatever the device reserves for the home indicator. */
+  --bottom-nav-h: calc(56px + env(safe-area-inset-bottom));
+}
+
+/* From `md` up the tab bar is hidden and the header pills take over. Kept in sync
+   with Tailwind v4's default `md` breakpoint (48rem). */
+@media (min-width: 48rem) {
+  :root {
+    --bottom-nav-h: 0px;
+  }
 }
 
 /* ──────────────────────────────────────────────────────
@@ -119,6 +132,46 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   transition: background-color 0.4s ease, color 0.3s ease;
+  /* Grey flash on tap looks broken next to the custom active states. */
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Skips the 300ms "is this a double-tap?" wait on touch devices while leaving
+   pinch-zoom alone. */
+button,
+a,
+[role="button"],
+label,
+summary {
+  touch-action: manipulation;
+}
+
+/* Bottom padding that clears the mobile tab bar (and the iOS home indicator). */
+.pb-app {
+  padding-bottom: calc(var(--bottom-nav-h) + 2rem);
+}
+
+/* Bottom-right floating widget (the study timer). Anchored above the tab bar on
+   phones, tucked into the corner once the tab bar is gone. */
+.floating-widget {
+  position: fixed;
+  right: 0.75rem;
+  bottom: calc(var(--bottom-nav-h) + 0.75rem);
+}
+
+@media (min-width: 48rem) {
+  .floating-widget {
+    right: 1.5rem;
+    bottom: 1.5rem;
+  }
+}
+
+/* Horizontal filmstrip that snaps its `snap-center` children into place under a
+   finger swipe, and keeps the swipe from triggering browser back-navigation. */
+.snap-rail {
+  scroll-snap-type: x proximity;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
 }
 
 h1, h2, h3, .font-display {
@@ -298,6 +351,19 @@ h1, h2, h3, .font-display {
   outline: none;
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+/* iOS Safari zooms the whole viewport in when a focused field's text is under
+   16px, which leaves the page scrolled sideways after every tap. Phones get 16px;
+   the tighter 15px/13px sizing stays from `md` up, where no zoom happens.
+   Unlayered so it beats both `.input-field` and Tailwind's `text-[13px]`. */
+@media (max-width: 47.99rem) {
+  .input-field,
+  input,
+  textarea,
+  select {
+    font-size: 16px;
+  }
 }
 
 /* ──────────────────────────────────────────────────────
