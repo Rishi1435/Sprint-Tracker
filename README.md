@@ -63,6 +63,24 @@ Open `http://localhost:3000`, enter a name, and try checking a few boxes.
 
 Any time you push new commits to `main`, Vercel redeploys automatically.
 
+### Point magic links at the deployed site
+
+Sign-in emails are sent by Supabase, and Supabase decides where their link lands — not the
+app. Two settings have to agree, or the mail arrives with a `http://localhost:3000` link
+that only opens on the machine that asked for it.
+
+1. In Supabase, open **Authentication → URL Configuration** and set **Site URL** to your
+   live address, e.g. `https://sprint-tracker-yourname.vercel.app`. Under **Redirect URLs**
+   add `https://sprint-tracker-yourname.vercel.app/auth/callback`. Supabase drops any
+   redirect that isn't on that list and quietly falls back to Site URL, which is why a
+   stale Site URL alone produces localhost links from a live site.
+2. Nothing more is needed on Vercel — the app uses the project's own production domain by
+   default. Set `NEXT_PUBLIC_SITE_URL` only for a custom domain, or in `.env.local` to have
+   the dev server mail links that land on the deployed site instead of localhost.
+
+Keep `http://localhost:3000/auth/callback` in **Redirect URLs** too if you still want the
+round-trip to work locally.
+
 ## How it works
 
 - `src/lib/plan.ts` — the entire 21-day plan (all 7 categories × 21 days) lives here as plain

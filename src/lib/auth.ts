@@ -10,6 +10,34 @@ export const authEnabled = Boolean(
   supabaseConfigured && (process.env.NEXT_PUBLIC_SUPABASE_AUTH_ENABLED ?? "true") !== "false"
 );
 
+/**
+ * The origin a magic link should come back to.
+ *
+ * Reading `window.location.origin` instead meant the mailed link was whichever
+ * host happened to ask for it, so requesting one from `npm run dev` sent out
+ * http://localhost:3000 — an address that resolves only on the machine that
+ * asked, and never on the phone where the mail actually gets opened.
+ *
+ * `NEXT_PUBLIC_SITE_URL` wins when set. Vercel's own production domain is the
+ * fallback (it publishes `NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL` on every
+ * deployment, preview builds included), so a deploy points at itself without
+ * anyone configuring anything. Only with neither does the current tab's origin
+ * stand in, which is what a local-only setup wants.
+ */
+export function siteOrigin(): string | undefined {
+  const configured = (
+    process.env.NEXT_PUBLIC_SITE_URL ||
+    process.env.NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL ||
+    ""
+  )
+    .trim()
+    .replace(/\/+$/, "");
+  if (configured) {
+    return /^https?:\/\//.test(configured) ? configured : `https://${configured}`;
+  }
+  return typeof window !== "undefined" ? window.location.origin : undefined;
+}
+
 export async function signInWithEmail(email: string, existingUserId?: string): Promise<{ ok: boolean; message?: string }> {
   if (!supabaseConfigured) {
     return { ok: false, message: "Supabase is not configured. Add env vars first." };
@@ -18,8 +46,12 @@ export async function signInWithEmail(email: string, existingUserId?: string): P
   if (!trimmed || !trimmed.includes("@")) {
     return { ok: false, message: "Please enter a valid email." };
   }
-  const redirectTo =
-    typeof window !== "undefined" ? `${window.location.origin}/auth/callback` : undefined;
+  // `/auth/callback` rather than `/dashboard` directly: that route exchanges the
+  // code for a session and links this email to the local profile before handing
+  // over to the dashboard, so skipping it signs nobody in.
+  const origin = siteOrigin();
+  const redirectTo = origin ? `${origin}/auth/callback` : undefined;
+
   const { error } = await supabase.auth.signInWithOtp({
     email: trimmed,
     options: {
