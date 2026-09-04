@@ -83,7 +83,7 @@ export default function NotificationOptIn() {
                 Nudge yourself to start tomorrow&apos;s block.
               </p>
             </div>
-            {/* Negative margin + padding grows the hit area to ~40px without
+            {/* Negative margin + padding grows the hit area to ~44px without
                 changing the size of the track itself. */}
             <button
               type="button"
@@ -93,15 +93,21 @@ export default function NotificationOptIn() {
               aria-label="Daily study reminder"
               className="-m-2 grid shrink-0 place-items-center p-2"
             >
+              {/* The knob is a flex item, not absolutely positioned: a button
+                  inherits `text-align: center`, which centres the static
+                  position of an `absolute` child with no `left` — that offset
+                  plus the translate pushed the knob off the end of the track.
+                  Flex also centres it vertically, so both states sit in a
+                  uniform 4px ring. */}
               <span
                 aria-hidden
-                className={`relative block h-6 w-11 rounded-full transition-colors ${
+                className={`flex h-7 w-12 items-center rounded-full transition-colors duration-200 ${
                   settings.enabled ? "bg-accent" : "bg-border"
                 }`}
               >
                 <span
-                  className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${
-                    settings.enabled ? "translate-x-5" : "translate-x-0.5"
+                  className={`h-5 w-5 shrink-0 rounded-full bg-white shadow-sm transition-transform duration-200 ${
+                    settings.enabled ? "translate-x-6" : "translate-x-1"
                   }`}
                 />
               </span>
