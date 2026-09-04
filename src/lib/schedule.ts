@@ -13,6 +13,12 @@ export interface CurrentBlock {
   isStudy: boolean;
 }
 
+export interface UpcomingBlock {
+  slot: ScheduleSlot;
+  startMin: number; // minutes from local midnight
+  startsInMs: number;
+}
+
 /** Parse a "7:30 – 7:55 PM" or "9:00 – 10:00 AM" range into [startMin, endMin] local-time minutes. */
 export function parseRange(range: string): [number, number] | null {
   // Match patterns like "6:00 – 7:30 PM" or "12:00 AM" (single endpoint)
@@ -96,10 +102,43 @@ export function getNextStudyBlock(date: Date = new Date()): ScheduleSlot | null 
   return null;
 }
 
+/**
+ * The next study block plus how long until it starts, so a widget waiting on it
+ * can count down instead of showing a title that never moves. The weekday
+ * timetable is gapless from 6 PM to midnight, so this is what's on screen for
+ * most of the day.
+ */
+export function getNextStudyStart(date: Date = new Date()): UpcomingBlock | null {
+  const slot = getNextStudyBlock(date);
+  if (!slot) return null;
+  const range = parseRange(slot.time);
+  if (!range) return null;
+  return {
+    slot,
+    startMin: range[0],
+    startsInMs: Math.max(0, (range[0] - nowMinutes(date)) * 60_000),
+  };
+}
+
 /** Format ms as MM:SS. */
 export function formatMs(ms: number): string {
   const totalSec = Math.max(0, Math.floor(ms / 1000));
   const m = Math.floor(totalSec / 60);
   const s = totalSec % 60;
   return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
+}
+
+/**
+ * Like `formatMs`, but for waits that can run most of a day — `MM:SS` under an
+ * hour and `H:MM:SS` past it. Seconds are always shown so the countdown is
+ * visibly alive even when the block is hours off.
+ */
+export function formatCountdown(ms: number): string {
+  const totalSec = Math.max(0, Math.floor(ms / 1000));
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  const mm = m.toString().padStart(2, "0");
+  const ss = s.toString().padStart(2, "0");
+  return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
 }
