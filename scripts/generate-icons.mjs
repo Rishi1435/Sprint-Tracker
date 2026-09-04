@@ -105,11 +105,10 @@ function hexToRgb(hex) {
   return [(n >> 16) & 0xff, (n >> 8) & 0xff, n & 0xff];
 }
 
-/** Sample the app's 135° three-stop accent gradient at t in [0,1]. */
+/** Sample the app's vertical two-stop accent gradient at t in [0,1]. */
 const STOPS = [
-  [0.0, hexToRgb("#6366f1")],
-  [0.5, hexToRgb("#8b5cf6")],
-  [1.0, hexToRgb("#a855f7")],
+  [0.0, hexToRgb("#3a55e0")],
+  [1.0, hexToRgb("#2340c9")],
 ];
 
 function gradientAt(t) {
@@ -130,9 +129,9 @@ function gradientAt(t) {
 }
 
 /**
- * Draw the Sprint Room mark: a gradient squircle with a white checkmark.
+ * Draw the Sprint Room mark: an ultramarine squircle with a white checkmark.
  * The checkmark stays inside the central 60% so the icon survives the
- * maskable safe-zone crop.
+ * maskable safe-zone crop. public/icon.svg draws the same geometry.
  */
 function drawIcon(size, { monochrome = false, padding = 0 } = {}) {
   const rgba = new Uint8Array(size * size * 4);
@@ -180,7 +179,7 @@ function drawIcon(size, { monochrome = false, padding = 0 } = {}) {
         b = 255;
         a = Math.round(255 * tickCov * bgCov);
       } else {
-        const t = (px / size + py / size) / 2; // 135° sweep
+        const t = py / size; // matches --accent-gradient's 180deg
         const [gr, gg, gb] = gradientAt(t);
         r = Math.round(gr + (255 - gr) * tickCov);
         g = Math.round(gg + (255 - gg) * tickCov);

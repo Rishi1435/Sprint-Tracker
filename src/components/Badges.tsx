@@ -9,41 +9,51 @@ interface Props {
   rows: ProgressRow[];
 }
 
+/**
+ * The emoji stay: a badge is one of the few places where the glyph *is* the
+ * content. What changes is everything around them — an earned badge is stated in
+ * words and colour, not by being the one that isn't greyed out.
+ */
 export default function Badges({ plan, rows }: Props) {
   const achievements = evaluateAchievements(plan, rows);
   const earned = achievements.filter((a) => a.earned).length;
 
   return (
-    <div
-      className="rounded-xl border border-border bg-surface p-4 sm:p-5"
-      style={{ boxShadow: "var(--shadow-sm)" }}
-    >
-      <div className="mb-3 flex items-center justify-between">
-        <span className="text-[12px] font-bold uppercase tracking-wider text-text-faint">
-          Achievements
-        </span>
-        <span className="rounded-full bg-accent-soft px-2 py-0.5 text-[11px] font-semibold text-accent">
-          {earned} / {achievements.length}
-        </span>
+    <div className="card p-4 sm:p-5">
+      <div className="mb-3.5 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+        <h2 className="font-display text-lg font-semibold leading-tight text-text">Achievements</h2>
+        <p className="text-sm text-text-muted">
+          <span className="num font-semibold text-text">{earned}</span> of{" "}
+          <span className="num">{achievements.length}</span> earned
+        </p>
       </div>
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-2.5 md:grid-cols-5">
+
+      <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-2.5 md:grid-cols-5">
         {achievements.map((a) => (
-          <div
+          <li
             key={a.id}
-            className={`flex flex-col items-center gap-1 rounded-xl border p-2.5 text-center transition-all sm:p-3 ${
-              a.earned
-                ? "border-accent/30 bg-accent-soft"
-                : "border-border bg-surface-raised/50 opacity-55"
+            className={`flex flex-col items-center gap-1 rounded-xl border p-2.5 text-center sm:p-3 ${
+              a.earned ? "border-accent/30 bg-accent-soft" : "border-border-soft bg-surface"
             }`}
           >
-            <span aria-hidden className={`text-xl sm:text-2xl ${a.earned ? "" : "grayscale"}`}>
+            <span
+              aria-hidden
+              className={`text-xl leading-none sm:text-2xl ${a.earned ? "" : "opacity-40 grayscale"}`}
+            >
               {a.icon}
             </span>
-            <span className="text-[11.5px] font-semibold leading-tight text-text">{a.title}</span>
-            <span className="text-[10.5px] leading-tight text-text-faint">{a.description}</span>
-          </div>
+            <span
+              className={`text-sm font-semibold leading-tight ${
+                a.earned ? "text-text" : "text-text-muted"
+              }`}
+            >
+              {a.title}
+            </span>
+            <span className="text-xs leading-tight text-text-faint">{a.description}</span>
+            <span className="sr-only">{a.earned ? "Earned" : "Not earned yet"}</span>
+          </li>
         ))}
-      </div>
+      </ul>
     </div>
   );
 }

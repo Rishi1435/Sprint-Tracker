@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { setDayNotes } from "@/lib/db";
 import { describeError, friendlyError } from "@/lib/errors";
+import Icon from "./Icon";
 
 interface Props {
   userId: string;
@@ -54,8 +55,9 @@ export default function DayNotes({ userId, day, initialValue, isFuture }: Props)
 
   if (isFuture) {
     return (
-      <div className="mt-4 rounded-xl border border-dashed border-border bg-surface-raised/50 p-4 text-[12.5px] text-text-faint">
-        🔒 Notes are available starting from today.
+      <div className="mt-4 flex items-center gap-2 rounded-xl border border-dashed border-border bg-surface-raised/50 p-4 text-sm text-text-faint">
+        <Icon name="lock" size={14} />
+        <span>Notes open up when the day does.</span>
       </div>
     );
   }
@@ -64,22 +66,23 @@ export default function DayNotes({ userId, day, initialValue, isFuture }: Props)
     return (
       <button
         onClick={() => setOpen(true)}
-        className="mt-4 flex min-h-[44px] items-center gap-2 rounded-lg border border-dashed border-border bg-surface-raised/40 px-3.5 py-2 text-[12.5px] font-semibold text-text-muted transition-colors hover:border-accent/40 hover:text-text"
+        className="mt-4 flex min-h-[44px] items-center gap-2 rounded-lg border border-dashed border-border bg-surface-raised/40 px-3.5 py-2 text-sm font-semibold text-text-muted transition-colors hover:border-accent/40 hover:text-text"
       >
-        <span aria-hidden>📝</span>
-        <span>Add notes for today</span>
+        <Icon name="note" size={14} />
+        <span>Add a note for day {day}</span>
       </button>
     );
   }
 
   return (
-    <div className="mt-4 rounded-xl border border-border bg-surface p-3" style={{ boxShadow: "var(--shadow-sm)" }}>
+    <div className="card mt-4 p-3">
       <div className="mb-2 flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
-        <span className="text-[12px] font-semibold uppercase tracking-wider text-text-muted">
-          📝 Day {day} notes
+        <span className="flex items-center gap-1.5 text-sm font-semibold text-text-muted">
+          <Icon name="note" size={13} />
+          Day {day} notes
         </span>
         <span
-          className={`text-[10.5px] ${failed ? "font-semibold text-warn" : "text-text-faint"}`}
+          className={`text-xs ${failed ? "font-semibold text-warn" : "text-text-faint"}`}
           role={failed ? "alert" : undefined}
         >
           {failed
@@ -88,16 +91,16 @@ export default function DayNotes({ userId, day, initialValue, isFuture }: Props)
               ? "Saving…"
               : savedAt
                 ? `Saved ${formatRelative(savedAt)}`
-                : "Auto-saves"}
+                : "Saves as you type"}
         </span>
       </div>
       <textarea
         value={value}
         onChange={(e) => setValue(e.target.value)}
-        placeholder="What did you learn? What tripped you up? What to revisit on Sunday?"
+        placeholder="What landed? What tripped you up? What deserves another pass on Sunday?"
         rows={3}
         maxLength={1000}
-        className="input-field w-full resize-y text-[13px]"
+        className="input-field w-full resize-y"
       />
     </div>
   );

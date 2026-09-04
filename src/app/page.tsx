@@ -9,6 +9,7 @@ import { describeError } from "@/lib/errors";
 import { supabaseConfigured } from "@/lib/supabaseClient";
 import { authEnabled, signInWithEmail } from "@/lib/auth";
 import { TOTAL_DAYS, TOTAL_TASKS } from "@/lib/plan";
+import Icon from "@/components/Icon";
 
 type Mode = "email" | "name";
 
@@ -92,223 +93,232 @@ export default function LandingPage() {
   return (
     /* `dvh`, not `vh`: mobile browsers count the collapsing URL bar in `vh`, which
        would leave the hero pushed below the fold on first paint. */
-    <div className="flex min-h-[calc(100dvh-140px)] flex-col items-center justify-center py-8 sm:py-10">
-      {/* Hero section */}
-      <div className="mb-8 flex flex-col items-center text-center animate-fade-in-up sm:mb-10">
-        {/* Floating badge */}
-        <span
-          className="badge mb-5 border border-accent/20 text-accent"
-          style={{ background: 'var(--accent-soft)' }}
+    <div className="flex min-h-[calc(100dvh-140px)] items-center justify-center py-8 sm:py-10">
+      <div className="grid w-full items-center gap-10 lg:grid-cols-[1.05fr_minmax(0,21rem)] lg:gap-14">
+        {/* Pitch */}
+        <div className="animate-fade-in-up flex flex-col items-center text-center lg:items-start lg:text-left">
+          <h1 className="max-w-[20ch] font-display text-4xl font-semibold leading-[1.07] text-text sm:text-5xl">
+            Every day checked off, in front of everyone.
+          </h1>
+
+          <p className="mt-4 max-w-[46ch] text-lg leading-relaxed text-text-muted">
+            Aptitude, reasoning, verbal, CS fundamentals, Java, DSA and LeetCode —
+            one plan, ticked off nightly, visible to the whole squad.
+          </p>
+
+          {/* The sprint, drawn. Three rows of seven is the thing the whole app is
+              about, so it opens the page instead of a stock graphic. Fixed demo
+              state, not live data — identical markup on the server and after
+              hydration. */}
+          <div className="mt-9 w-full max-w-[19.5rem]">
+            <div aria-hidden className="grid grid-cols-7 gap-1.5">
+              {Array.from({ length: TOTAL_DAYS }, (_, i) => {
+                const day = i + 1;
+                const done = day <= 8;
+                const today = day === 9;
+                return (
+                  <span
+                    key={day}
+                    className={`grid aspect-square place-items-center rounded-md text-xs font-semibold ${
+                      done
+                        ? "bg-done text-on-fill"
+                        : today
+                          ? "bg-accent-soft text-accent"
+                          : "bg-surface-raised text-text-faint"
+                    }`}
+                    style={today ? { boxShadow: "inset 0 0 0 1.5px var(--accent)" } : undefined}
+                  >
+                    {done ? (
+                      <Icon name="check" size={12} strokeWidth={2.8} />
+                    ) : (
+                      <span className="num">{day}</span>
+                    )}
+                  </span>
+                );
+              })}
+            </div>
+            <p className="mt-3.5 text-sm leading-relaxed text-text-muted">
+              {TOTAL_DAYS} days, {TOTAL_TASKS} tasks a night, one square each. Nothing to set up.
+            </p>
+          </div>
+        </div>
+
+        {/* Sign-in */}
+        <div
+          className="panel animate-fade-in-up w-full max-w-sm justify-self-center p-5 sm:p-6"
+          style={{ animationDelay: "0.12s" }}
         >
-          <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
-            <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
-          </svg>
-          {TOTAL_DAYS}-day sprint · {TOTAL_TASKS} tasks
-        </span>
-
-        <h1 className="font-display max-w-lg text-[28px] font-bold leading-[1.1] tracking-tight text-text sm:text-[44px] sm:leading-[1.08]">
-          Every day checked off,{" "}
-          <span style={{ backgroundImage: 'var(--accent-gradient)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
-            in front of everyone.
-          </span>
-        </h1>
-
-        <p className="mt-4 max-w-md text-[13.5px] leading-relaxed text-text-muted sm:text-[15px]">
-          Aptitude, Reasoning, Verbal, CS Fundamentals, Java Core, DSA, LeetCode
-          — one plan, tracked daily, visible to your whole squad.
-        </p>
-      </div>
-      {/* Login card */}
-      <div
-        className="glass-card w-full max-w-sm p-5 sm:p-6 animate-fade-in-up"
-        style={{ animationDelay: '0.15s' }}
-      >
-        {authEnabled && !sent && (
-          <div
-            role="tablist"
-            aria-label="Sign-in method"
-            className="mb-5 grid grid-cols-2 gap-1 rounded-xl bg-surface-raised p-1"
-          >
-            {([
-              { key: "email" as Mode, label: "Email link" },
-              { key: "name" as Mode, label: "Quick join" },
-            ]).map((t) => (
+          {authEnabled && !sent && (
+            <div
+              role="tablist"
+              aria-label="Sign-in method"
+              className="mb-5 flex items-stretch gap-1 rounded-lg border border-border-soft bg-surface-raised p-1"
+            >
+              {([
+                { key: "email" as Mode, label: "Email link" },
+                { key: "name" as Mode, label: "Quick join" },
+              ]).map((t) => (
+                <button
+                  key={t.key}
+                  role="tab"
+                  type="button"
+                  aria-selected={mode === t.key}
+                  onClick={() => {
+                    setMode(t.key);
+                    resetError();
+                  }}
+                  className={`min-h-[40px] flex-1 rounded-md px-3 text-base font-semibold transition-colors duration-200 ${
+                    mode === t.key
+                      ? "bg-surface text-text shadow-sm"
+                      : "text-text-muted hover:text-text"
+                  }`}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+          )}
+          {sent ? (
+            <div className="py-4 text-center">
+              <div
+                className="mx-auto mb-4 grid h-12 w-12 place-items-center rounded-full text-accent"
+                style={{ background: "var(--accent-soft)" }}
+              >
+                <Icon name="mail" size={22} />
+              </div>
+              <h2 className="font-display text-lg font-semibold text-text">Check your inbox</h2>
+              <p className="mt-2 text-base leading-relaxed text-text-muted">
+                We sent a sign-in link to <span className="font-semibold text-text">{email}</span>.
+                Open it on this device to enter the sprint room.
+              </p>
               <button
-                key={t.key}
-                role="tab"
                 type="button"
-                aria-selected={mode === t.key}
                 onClick={() => {
-                  setMode(t.key);
+                  setSent(false);
                   resetError();
                 }}
-                className={`min-h-[40px] rounded-lg px-3 text-[13px] font-semibold transition-all duration-200 ${
-                  mode === t.key
-                    ? "bg-surface text-text shadow-sm"
-                    : "text-text-muted hover:text-text"
-                }`}
+                className="btn-ghost mt-5 min-h-[44px] w-full"
               >
-                {t.label}
+                Use a different email
               </button>
-            ))}
-          </div>
-        )}
-        {sent ? (
-          <div className="py-4 text-center">
-            <div
-              className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full text-accent"
-              style={{ background: 'var(--accent-soft)' }}
-            >
-              <svg className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-              </svg>
             </div>
-            <h2 className="font-display text-[17px] font-semibold text-text">Check your inbox</h2>
-            <p className="mt-2 text-[13px] leading-relaxed text-text-muted">
-              We sent a sign-in link to <span className="font-semibold text-text">{email}</span>.
-              Open it on this device to enter the sprint room.
-            </p>
-            <button
-              type="button"
-              onClick={() => {
-                setSent(false);
-                resetError();
-              }}
-              className="mt-5 min-h-[44px] w-full rounded-xl border border-border bg-surface px-4 text-[13px] font-semibold text-text-muted transition-colors hover:border-accent/30 hover:text-text"
-            >
-              Use a different email
-            </button>
-          </div>
-        ) : mode === "email" ? (
-          <form onSubmit={handleEmailSubmit}>
-            <div className="mb-5">
-              <label htmlFor="email" className="mb-2 block text-[12px] font-semibold uppercase tracking-wider text-text-muted">
-                Email
-              </label>
-              <input
-                id="email"
-                type="email"
-                inputMode="email"
-                autoComplete="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@example.com"
-                autoFocus
-                maxLength={120}
-                className="input-field"
-                required
-              />
-            </div>
-            {shownError && (
-              <div className="mb-4 rounded-lg border border-warn/30 bg-warn-soft px-3.5 py-2.5 text-[13px] text-warn">
-                {shownError}
+          ) : mode === "email" ? (
+            <form onSubmit={handleEmailSubmit}>
+              <div className="mb-5">
+                <label htmlFor="email" className="mb-2 block text-sm font-semibold text-text-muted">
+                  Email
+                </label>
+                <input
+                  id="email"
+                  type="email"
+                  inputMode="email"
+                  autoComplete="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="you@example.com"
+                  autoFocus
+                  maxLength={120}
+                  className="input-field"
+                  required
+                />
               </div>
-            )}
-
-            <button
-              type="submit"
-              disabled={submitting || !email.trim()}
-              className="btn-primary w-full min-h-[48px]"
-            >
-              {submitting ? (
-                <span className="flex items-center justify-center gap-2">
-                  <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
-                    <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeDasharray="32" strokeLinecap="round" />
-                  </svg>
-                  Sending link…
-                </span>
-              ) : (
-                "Email me a sign-in link →"
+              {shownError && (
+                <div
+                  role="alert"
+                  className="mb-4 rounded-lg border border-warn/30 bg-warn-soft px-3.5 py-2.5 text-base leading-relaxed text-warn"
+                >
+                  {shownError}
+                </div>
               )}
-            </button>
 
-            <p className="mt-4 text-center text-[12px] leading-relaxed text-text-faint">
-              No password. Your progress is tied to your email, so only you can tick your boxes.
-            </p>
-          </form>
-        ) : (
-          <form onSubmit={handleNameSubmit}>
-            <div className="mb-5">
-              <label htmlFor="username" className="mb-2 block text-[12px] font-semibold uppercase tracking-wider text-text-muted">
-                Username
-              </label>
-              <input
-                id="username"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="e.g. rishi"
-                autoFocus
-                maxLength={40}
-                className="input-field"
-                required
-              />
-            </div>
-            <div className="mb-5">
-              <label htmlFor="nickname" className="mb-2 flex items-center gap-2 text-[12px] font-semibold uppercase tracking-wider text-text-muted">
-                Nickname
-                <span className="rounded-full bg-surface-raised px-2 py-0.5 text-[10px] font-medium normal-case tracking-normal text-text-faint">
-                  optional
-                </span>
-              </label>
-              <input
-                id="nickname"
-                value={nickname}
-                onChange={(e) => setNickname(e.target.value)}
-                placeholder="e.g. Captain"
-                maxLength={30}
-                className="input-field"
-              />
-            </div>
+              <button
+                type="submit"
+                disabled={submitting || !email.trim()}
+                className="btn-primary min-h-[48px] w-full"
+              >
+                {submitting ? (
+                  <>
+                    <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                      <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeDasharray="32" strokeLinecap="round" />
+                    </svg>
+                    Sending the link…
+                  </>
+                ) : (
+                  "Email me a link"
+                )}
+              </button>
 
-            {shownError && (
-              <div className="mb-4 rounded-lg border border-warn/30 bg-warn-soft px-3.5 py-2.5 text-[13px] text-warn">
-                {shownError}
+              <p className="mt-4 text-center text-sm leading-relaxed text-text-faint">
+                No password. Your progress is tied to your email, so only you can tick your boxes.
+              </p>
+            </form>
+          ) : (
+            <form onSubmit={handleNameSubmit}>
+              <div className="mb-5">
+                <label htmlFor="username" className="mb-2 block text-sm font-semibold text-text-muted">
+                  Username
+                </label>
+                <input
+                  id="username"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="e.g. rishi"
+                  autoFocus
+                  maxLength={40}
+                  className="input-field"
+                  required
+                />
               </div>
-            )}
+              <div className="mb-5">
+                <label htmlFor="nickname" className="mb-2 flex items-center gap-2 text-sm font-semibold text-text-muted">
+                  Nickname
+                  <span className="rounded-full bg-surface-raised px-2 py-0.5 text-2xs font-medium text-text-faint">
+                    optional
+                  </span>
+                </label>
+                <input
+                  id="nickname"
+                  value={nickname}
+                  onChange={(e) => setNickname(e.target.value)}
+                  placeholder="e.g. Captain"
+                  maxLength={30}
+                  className="input-field"
+                />
+              </div>
 
-            <button
-              type="submit"
-              disabled={submitting || !name.trim()}
-              className="btn-primary w-full min-h-[48px]"
-            >
-              {submitting ? (
-                <span className="flex items-center justify-center gap-2">
-                  <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
-                    <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeDasharray="32" strokeLinecap="round" />
-                  </svg>
-                  Joining…
-                </span>
-              ) : (
-                "Enter Sprint Room →"
+              {shownError && (
+                <div
+                  role="alert"
+                  className="mb-4 rounded-lg border border-warn/30 bg-warn-soft px-3.5 py-2.5 text-base leading-relaxed text-warn"
+                >
+                  {shownError}
+                </div>
               )}
-            </button>
 
-            <p className="mt-4 text-center text-[12px] leading-relaxed text-text-faint">
-              Already used this name before? You&apos;ll pick up right where you left off.
-              {authEnabled && " Add an email later from your profile to lock it to you."}
-            </p>
-          </form>
-        )}
-      </div>
-      {/* Features grid */}
-      <div className="mt-8 grid w-full max-w-lg grid-cols-1 gap-3 animate-fade-in-up sm:mt-12 sm:grid-cols-3 sm:gap-4" style={{ animationDelay: '0.3s' }}>
-        {[
-          { icon: "📋", label: "Personal Checklist", desc: "7 tasks per day" },
-          { icon: "🏆", label: "Squad Board", desc: "See everyone's progress" },
-          { icon: "🔥", label: "Streak Tracking", desc: "Stay consistent" },
-        ].map((f) => (
-          <div
-            key={f.label}
-            className="flex items-center gap-3 rounded-xl border border-border bg-surface p-3.5 text-left transition-all duration-200 hover:border-accent/30 sm:flex-col sm:gap-2 sm:p-4 sm:text-center"
-            style={{ boxShadow: 'var(--shadow-sm)' }}
-          >
-            <span aria-hidden className="text-2xl leading-none">{f.icon}</span>
-            <span className="flex min-w-0 flex-col sm:items-center">
-              <span className="text-[12.5px] font-semibold text-text sm:text-[12px]">{f.label}</span>
-              <span className="text-[11.5px] text-text-faint sm:text-[11px]">{f.desc}</span>
-            </span>
-          </div>
-        ))}
+              <button
+                type="submit"
+                disabled={submitting || !name.trim()}
+                className="btn-primary min-h-[48px] w-full"
+              >
+                {submitting ? (
+                  <>
+                    <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                      <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeDasharray="32" strokeLinecap="round" />
+                    </svg>
+                    Joining…
+                  </>
+                ) : (
+                  "Enter the sprint room"
+                )}
+              </button>
+
+              <p className="mt-4 text-center text-sm leading-relaxed text-text-faint">
+                Used this name before? You&apos;ll pick up right where you left off.
+                {authEnabled && " Add an email later from your profile to lock it to you."}
+              </p>
+            </form>
+          )}
+        </div>
       </div>
     </div>
   );

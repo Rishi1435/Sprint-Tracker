@@ -6,11 +6,11 @@ import { listUsers, subscribeToReactionsFor } from "@/lib/db";
 import type { ReactionRow, UserRow } from "@/lib/types";
 import ToastList, { type Toast } from "./Toast";
 
-const REACTION_EMOJI: Record<string, string> = {
-  cheer: "🎉",
-  fire: "🔥",
-  clap: "👏",
-  star: "⭐",
+const REACTIONS: Record<string, { emoji: string; says: string }> = {
+  cheer: { emoji: "🎉", says: "cheered you on" },
+  fire: { emoji: "🔥", says: "says you're on fire" },
+  clap: { emoji: "👏", says: "clapped for your day" },
+  star: { emoji: "⭐", says: "starred your day" },
 };
 
 export default function ReactionListener() {
@@ -35,15 +35,17 @@ export default function ReactionListener() {
     const unsub = subscribeToReactionsFor(user.id, (r: ReactionRow) => {
       const sender = users[r.from_user_id];
       const senderName = sender?.nickname || sender?.name || "Someone";
-      const emoji = REACTION_EMOJI[r.type] || "🔔";
+      // The emoji rides in `icon`, where the toast draws it once. Putting it in
+      // the title as well printed it twice.
+      const meta = REACTIONS[r.type] ?? { emoji: "🔔", says: `sent you a ${r.type}` };
       const id = `${r.id}-${Date.now()}`;
       setToasts((prev) => [
         ...prev,
         {
           id,
-          title: `${emoji} ${senderName} sent you a ${r.type}!`,
-          body: r.day_number ? `For your Day ${r.day_number} progress` : "Keep going!",
-          icon: emoji,
+          title: `${senderName} ${meta.says}`,
+          body: r.day_number ? `For your day ${r.day_number}.` : "Keep it going.",
+          icon: meta.emoji,
         },
       ]);
     });

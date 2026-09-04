@@ -36,30 +36,35 @@ interface Palette {
 
 const PALETTES: Record<CardTheme, Palette> = {
   dark: {
-    bgFrom: "#0b0d14",
-    bgTo: "#191d33",
-    surface: "#151928",
-    border: "#272c42",
-    track: "#232840",
-    text: "#f4f5fb",
-    muted: "#9ba3c2",
-    faint: "#6d7594",
-    accent: "#6366f1",
-    accentTo: "#a78bfa",
+    bgFrom: "#0d0f14",
+    bgTo: "#171b25",
+    surface: "#15181f",
+    border: "#272c37",
+    track: "#1f2430",
+    text: "#e8ebf1",
+    muted: "#98a0ad",
+    faint: "#6d7583",
+    accent: "#93a3ff",
+    accentTo: "#8494fb",
   },
   light: {
     bgFrom: "#ffffff",
-    bgTo: "#eceffc",
-    surface: "#f7f8fd",
-    border: "#e2e6f3",
-    track: "#e7eaf6",
-    text: "#12141c",
-    muted: "#565e7a",
-    faint: "#868ea8",
-    accent: "#6366f1",
-    accentTo: "#8b5cf6",
+    bgTo: "#e8ebf2",
+    surface: "#f4f6f9",
+    border: "#d7dae2",
+    track: "#e6e9ef",
+    text: "#15171c",
+    muted: "#545b66",
+    faint: "#6f7681",
+    accent: "#2743d4",
+    accentTo: "#4a63e8",
   },
 };
+
+// The app mark keeps its own colours in both themes — it's the icon on the
+// user's home screen, and a white tick needs the deep ultramarine behind it.
+const MARK_FROM = "#3a55e0";
+const MARK_TO = "#2340c9";
 
 const FONT = "Helvetica Neue, Helvetica, Arial, sans-serif";
 
@@ -123,7 +128,7 @@ function statTile(x: number, y: number, w: number, value: string, label: string,
   return (
     `<rect x="${x}" y="${y}" width="${w}" height="98" rx="18" fill="${p.surface}" stroke="${p.border}" stroke-width="1.5"/>` +
     text(x + 22, y + 56, value, { size: 34, fill: p.text, bold: true }) +
-    text(x + 22, y + 80, label.toUpperCase(), { size: 13, fill: p.faint, bold: true, tracking: 1.4 })
+    text(x + 22, y + 80, label, { size: 14, fill: p.faint })
   );
 }
 
@@ -139,13 +144,6 @@ export function buildShareCardSvg(s: SprintSummary, opts: ShareCardOptions = {})
 
   // ── Backdrop ──────────────────────────────────────────────────────────────
   parts.push(`<rect width="${CARD_WIDTH}" height="${CARD_HEIGHT}" fill="url(#bgGrad)"/>`);
-  // Two soft accent blooms; `feGaussianBlur` is fine inside an <img>.
-  parts.push(
-    `<g filter="url(#soft)" opacity="${opts.theme === "light" ? 0.22 : 0.4}">` +
-      `<circle cx="1080" cy="70" r="170" fill="${p.accent}"/>` +
-      `<circle cx="150" cy="620" r="150" fill="${p.accentTo}"/>` +
-      `</g>`
-  );
 
   // ── Header ────────────────────────────────────────────────────────────────
   parts.push(
@@ -153,14 +151,12 @@ export function buildShareCardSvg(s: SprintSummary, opts: ShareCardOptions = {})
       `<path d="M78 76 l7 7 l14 -16" fill="none" stroke="#ffffff" stroke-width="4.5" ` +
       `stroke-linecap="round" stroke-linejoin="round"/>`
   );
-  parts.push(text(126, 84, "SPRINT ROOM", { size: 23, fill: p.text, bold: true, tracking: 2.4 }));
+  parts.push(text(126, 85, "Sprint Room", { size: 25, fill: p.text, bold: true }));
   parts.push(
-    text(CARD_WIDTH - 64, 82, "21-DAY JOB PREP SPRINT", {
-      size: 14,
+    text(CARD_WIDTH - 64, 84, "21-day job prep sprint", {
+      size: 17,
       fill: p.faint,
-      bold: true,
       anchor: "end",
-      tracking: 2.2,
     })
   );
   parts.push(
@@ -174,7 +170,7 @@ export function buildShareCardSvg(s: SprintSummary, opts: ShareCardOptions = {})
   );
   const subtitle = s.startLabel === "Not started yet"
     ? "Not started yet"
-    : `Day ${s.currentDay} of ${s.totalDays}  ·  ${s.startLabel} – ${s.endLabel}`;
+    : `Day ${s.currentDay} of ${s.totalDays}, ${s.startLabel} – ${s.endLabel}`;
   parts.push(text(64, 246, fit(subtitle, 620, 21, false), { size: 21, fill: p.muted }));
 
   const ringR = 100;
@@ -197,12 +193,10 @@ export function buildShareCardSvg(s: SprintSummary, opts: ShareCardOptions = {})
     text(ringCx, ringCy + 16, `${s.percent}%`, { size: 62, fill: p.text, bold: true, anchor: "middle" })
   );
   parts.push(
-    text(ringCx, ringCy + 46, "COMPLETE", {
-      size: 14,
+    text(ringCx, ringCy + 48, "complete", {
+      size: 17,
       fill: p.faint,
-      bold: true,
       anchor: "middle",
-      tracking: 2.4,
     })
   );
 
@@ -245,7 +239,7 @@ export function buildShareCardSvg(s: SprintSummary, opts: ShareCardOptions = {})
   );
   const footerLeft = s.bestSubject
     ? `Strongest: ${s.bestSubject.label} (${s.bestSubject.percent}%)`
-    : "Aptitude · Reasoning · Verbal · CS · Java · DSA · LeetCode";
+    : "Aptitude, Reasoning, Verbal, CS, Java, DSA, LeetCode";
   parts.push(text(64, 597, fit(footerLeft, 700, 17, false), { size: 17, fill: p.muted }));
   parts.push(
     text(CARD_WIDTH - 64, 597, `${s.avgPerActiveDay} tasks/active day`, {
@@ -262,8 +256,8 @@ export function buildShareCardSvg(s: SprintSummary, opts: ShareCardOptions = {})
     `<linearGradient id="bgGrad" x1="0" y1="0" x2="1" y2="1">` +
     `<stop offset="0" stop-color="${p.bgFrom}"/><stop offset="1" stop-color="${p.bgTo}"/>` +
     `</linearGradient>` +
-    `<linearGradient id="markGrad" x1="0" y1="0" x2="1" y2="1">` +
-    `<stop offset="0" stop-color="${p.accent}"/><stop offset="1" stop-color="${p.accentTo}"/>` +
+    `<linearGradient id="markGrad" x1="0" y1="0" x2="0" y2="1">` +
+    `<stop offset="0" stop-color="${MARK_FROM}"/><stop offset="1" stop-color="${MARK_TO}"/>` +
     `</linearGradient>` +
     `<linearGradient id="barGrad" x1="0" y1="0" x2="1" y2="0">` +
     `<stop offset="0" stop-color="${p.accent}"/><stop offset="1" stop-color="${p.accentTo}"/>` +
@@ -271,9 +265,6 @@ export function buildShareCardSvg(s: SprintSummary, opts: ShareCardOptions = {})
     `<linearGradient id="ringGrad" x1="0" y1="0" x2="1" y2="1">` +
     `<stop offset="0" stop-color="${p.accent}"/><stop offset="1" stop-color="${p.accentTo}"/>` +
     `</linearGradient>` +
-    `<filter id="soft" x="-50%" y="-50%" width="200%" height="200%">` +
-    `<feGaussianBlur stdDeviation="90"/>` +
-    `</filter>` +
     `</defs>` +
     parts.join("") +
     `</svg>`

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useHydrated } from "@/lib/useClientValue";
 import { isSupported, requestPermission, loadReminderSettings, saveReminderSettings } from "@/lib/notifications";
+import Icon from "./Icon";
 
 const BANNER_KEY = "sprintroom_reminder_banner_dismissed";
 const VISIT_KEY = "sprintroom_dashboard_visits";
@@ -71,26 +72,28 @@ export default function NotificationBanner() {
 
   return (
     <div
-      className="rounded-xl border border-accent/30 bg-accent-soft px-3.5 py-3 text-[13px] text-text flex flex-wrap items-center justify-between gap-3 animate-fade-in sm:px-4"
+      className="animate-fade-in flex flex-wrap items-center justify-between gap-3 rounded-xl border border-accent/30 bg-accent-soft px-3.5 py-3 text-md text-text sm:px-4"
       role="region"
-      aria-label="Enable daily study reminder"
+      aria-label="Daily study reminder"
     >
-      <div className="flex min-w-0 flex-1 items-start gap-2.5 sm:items-center">
-        <span aria-hidden className="mt-0.5 text-lg leading-none sm:mt-0">🔔</span>
-        <span className="leading-snug">
-          Want a friendly nudge at 7:25 PM each day to start your study block? Enable browser notifications.
+      <p className="flex min-w-0 flex-1 items-start gap-2.5 sm:items-center">
+        <span aria-hidden className="mt-0.5 shrink-0 text-accent sm:mt-0">
+          <Icon name="bell" size={16} />
         </span>
-      </div>
+        <span className="leading-snug">
+          A nudge at 7:25 PM, every day, so the study block starts on time.
+        </span>
+      </p>
       <div className="flex w-full items-center gap-2 sm:w-auto sm:shrink-0">
         <button
           onClick={enable}
-          className="btn-primary min-h-[40px] flex-1 px-3 py-1.5 text-[12.5px] sm:min-h-0 sm:flex-none"
+          className="btn-primary min-h-[40px] flex-1 px-3 py-1.5 text-sm sm:min-h-0 sm:flex-none"
         >
-          Enable
+          Remind me
         </button>
         <button
           onClick={dismiss}
-          className="min-h-[40px] flex-1 rounded-lg border border-border bg-surface px-3 py-1.5 text-[12.5px] font-semibold text-text-muted hover:text-text transition-colors sm:min-h-0 sm:flex-none"
+          className="btn-ghost min-h-[40px] flex-1 px-3 py-1.5 text-sm sm:min-h-0 sm:flex-none"
         >
           Not now
         </button>

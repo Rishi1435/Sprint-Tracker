@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCurrentUser } from "@/lib/useCurrentUser";
 import { NAV_ITEMS } from "@/lib/nav";
+import Icon from "./Icon";
 
 /**
  * Thumb-reachable tab bar for phones. The header keeps the same destinations as
@@ -36,24 +37,18 @@ export default function BottomNav() {
               <Link
                 href={item.href}
                 aria-current={active ? "page" : undefined}
-                className="flex min-h-[56px] flex-col items-center justify-center gap-0.5 px-1 py-2 transition-colors"
+                className={`flex min-h-[56px] flex-col items-center justify-center gap-1 px-1 py-2 transition-colors ${
+                  active ? "text-accent" : "text-text-faint"
+                }`}
               >
                 <span
                   aria-hidden
-                  className={`grid h-7 w-12 place-items-center rounded-full text-[15px] leading-none transition-all duration-200 ${
-                    active ? "scale-105" : "opacity-70"
-                  }`}
+                  className="grid h-7 w-12 place-items-center rounded-full transition-colors duration-200"
                   style={active ? { background: "var(--accent-soft)" } : undefined}
                 >
-                  {item.icon}
+                  <Icon name={item.icon} size={18} strokeWidth={active ? 2 : 1.75} />
                 </span>
-                <span
-                  className={`text-[10.5px] font-semibold tracking-wide transition-colors ${
-                    active ? "text-accent" : "text-text-faint"
-                  }`}
-                >
-                  {item.short}
-                </span>
+                <span className="text-2xs font-semibold">{item.short}</span>
               </Link>
             </li>
           );

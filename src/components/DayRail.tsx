@@ -44,17 +44,14 @@ export default function DayRail({ plan, progressByDay, currentDay, selectedDay, 
   return (
     <div
       ref={scrollerRef}
-      className="scrollbar-thin snap-rail overflow-x-auto rounded-xl border border-border bg-surface p-3 pb-2.5 sm:p-4 sm:pb-3"
-      style={{ boxShadow: "var(--shadow-sm)" }}
+      className="scrollbar-thin snap-rail card overflow-x-auto p-3 pb-2.5 sm:p-4 sm:pb-3"
     >
       <div className="flex min-w-max items-start justify-between gap-6 lg:gap-8 xl:min-w-full">
         {WEEKS.map((w) => (
           <div key={w} className="flex flex-1 snap-center flex-col gap-2.5">
             <div className="flex items-center justify-between gap-2 pr-2">
-              <span className="pl-0.5 text-[11px] font-bold uppercase tracking-widest text-text-faint">
-                Week {w}
-              </span>
-              <span className="whitespace-nowrap text-[10px] font-medium text-text-faint">
+              <span className="pl-0.5 text-xs font-semibold text-text-muted">Week {w}</span>
+              <span className="num whitespace-nowrap text-2xs font-medium text-text-faint">
                 {w === 1 ? "Days 1–7" : w === 2 ? "Days 8–14" : "Days 15–21"}
               </span>
             </div>
@@ -80,19 +77,19 @@ export default function DayRail({ plan, progressByDay, currentDay, selectedDay, 
                     onClick={() => onSelect(d.day)}
                     aria-current={isSelected ? "date" : undefined}
                     aria-label={`Day ${d.day}, ${d.weekday}, ${checked} of ${totalTasks} tasks done${
-                      isToday ? ", current day" : isFuture ? ", future day (read-only)" : ""
-                    }`}
+                      d.isSunday ? ", Sunday schedule" : ""
+                    }${isToday ? ", current day" : isFuture ? ", future day (read-only)" : ""}`}
                     title={
                       isToday
-                        ? `Day ${d.day} · ${d.weekday} (Today) — ${checked}/${totalTasks} done`
+                        ? `Day ${d.day}, ${d.weekday} (today) — ${checked}/${totalTasks} done`
                         : isFuture
-                        ? `Day ${d.day} · ${d.weekday} (Future Day — Read Only Preview)`
-                        : `Day ${d.day} · ${d.weekday} — ${checked}/${totalTasks} done`
+                        ? `Day ${d.day}, ${d.weekday} — not here yet`
+                        : `Day ${d.day}, ${d.weekday} — ${checked}/${totalTasks} done`
                     }
-                    className={`relative grid h-11 w-11 shrink-0 place-items-center rounded-xl text-[12.5px] font-semibold transition-all duration-200 md:h-10 md:w-10 md:text-[12px] ${
-                      isSelected ? "scale-110 shadow-md ring-2 ring-accent" : "hover:scale-105"
+                    className={`relative grid h-11 w-11 shrink-0 place-items-center rounded-xl text-sm font-semibold transition-transform duration-200 md:h-10 md:w-10 ${
+                      isSelected ? "scale-105" : "hover:scale-105"
                     } ${isToday && !isSelected ? "animate-pulse-glow" : ""} ${
-                      isFuture && !isSelected ? "opacity-75" : ""
+                      isFuture && !isSelected ? "opacity-70" : ""
                     }`}
                     style={{
                       background: full
@@ -103,26 +100,20 @@ export default function DayRail({ plan, progressByDay, currentDay, selectedDay, 
                       border: isSelected
                         ? "2px solid var(--accent)"
                         : full
-                        ? "2px solid var(--done)"
+                        ? "1.5px solid var(--done)"
                         : "1.5px solid var(--border)",
-                      boxShadow: isSelected
-                        ? "var(--shadow-glow)"
-                        : isToday
-                        ? "0 0 0 2px var(--accent-dim)"
-                        : "var(--shadow-sm)",
+                      boxShadow: isSelected ? "var(--shadow-glow)" : undefined,
                     }}
                   >
                     <span
-                      className="grid place-items-center rounded-lg"
+                      className="num grid place-items-center rounded-md"
                       style={{
                         width: hasProgress && !full ? "28px" : "auto",
                         height: hasProgress && !full ? "28px" : "auto",
                         background: hasProgress && !full ? "var(--surface)" : "transparent",
                         color: full
-                          ? "#ffffff"
-                          : isSelected
-                          ? "var(--accent)"
-                          : isToday
+                          ? "var(--on-fill)"
+                          : isSelected || isToday
                           ? "var(--accent)"
                           : hasProgress
                           ? "var(--text)"
@@ -133,17 +124,19 @@ export default function DayRail({ plan, progressByDay, currentDay, selectedDay, 
                     >
                       {d.day}
                     </span>
-                    {/* Marks the 8-task Sundays, wherever they fall in the sprint. */}
+                    {/* The 8-task Sundays, wherever they fall in this person's
+                        sprint. A neutral dot rather than a sun: it means "this
+                        day runs differently", which is not a warning. */}
                     {d.isSunday && (
                       <span
                         aria-hidden
-                        className="pointer-events-none absolute -right-0.5 -top-1 text-[9px] leading-none"
-                      >
-                        ☀️
-                      </span>
+                        className="pointer-events-none absolute right-1 top-1 h-1 w-1 rounded-full"
+                        style={{ background: full ? "var(--on-fill)" : "var(--text-faint)" }}
+                      />
                     )}
                     {isToday && (
                       <span
+                        aria-hidden
                         className="absolute -bottom-1.5 h-1.5 w-1.5 rounded-full"
                         style={{ background: "var(--accent)" }}
                       />

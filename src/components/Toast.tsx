@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Icon from "./Icon";
 
 export interface Toast {
   id: string;
@@ -48,26 +49,32 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: (id: string)
 
   return (
     <div
-      className={`pointer-events-auto rounded-xl border border-border bg-surface p-3 shadow-lg transition-all duration-300 ${
-        visible ? "translate-x-0 opacity-100" : "translate-x-8 opacity-0"
+      className={`panel pointer-events-auto p-3 transition-[opacity,transform] duration-300 ${
+        visible ? "translate-x-0 opacity-100" : "translate-x-2 opacity-0"
       }`}
-      style={{ boxShadow: "var(--shadow-lg)" }}
       role="status"
     >
-      <div className="flex items-start gap-3">
-        <span aria-hidden className="text-xl leading-none">{toast.icon || "🔔"}</span>
+      <div className="flex items-start gap-2.5">
+        {/* A reaction emoji *is* the message here, so it gets a disc of its own
+            instead of being repeated inside the sentence. */}
+        <span
+          aria-hidden
+          className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-accent-soft text-lg leading-none"
+        >
+          {toast.icon ? toast.icon : <Icon name="bell" size={15} className="text-accent" />}
+        </span>
         <div className="min-w-0 flex-1">
-          <p className="text-[13px] font-semibold text-text">{toast.title}</p>
+          <p className="text-base font-semibold leading-snug text-text">{toast.title}</p>
           {toast.body && (
-            <p className="mt-0.5 text-[12px] leading-snug text-text-muted">{toast.body}</p>
+            <p className="mt-0.5 text-xs leading-relaxed text-text-muted">{toast.body}</p>
           )}
         </div>
         <button
           onClick={() => onDismiss(toast.id)}
-          className="-m-1.5 grid h-9 w-9 shrink-0 place-items-center rounded-full text-[14px] text-text-faint transition-colors hover:bg-surface-raised hover:text-text"
+          className="-m-1 grid h-8 w-8 shrink-0 place-items-center rounded-lg text-text-faint transition-colors hover:bg-surface-raised hover:text-text"
           aria-label="Dismiss"
         >
-          ✕
+          <Icon name="close" size={14} />
         </button>
       </div>
     </div>

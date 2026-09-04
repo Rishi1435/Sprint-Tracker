@@ -28,7 +28,13 @@ import ProgressBar from "@/components/ProgressBar";
 import ScheduleRulesModal from "@/components/ScheduleRulesModal";
 import DayNotes from "@/components/DayNotes";
 import NotificationBanner from "@/components/NotificationBanner";
+import Icon from "@/components/Icon";
 
+/**
+ * Subject glyphs are content, not controls — they name the eight things this
+ * sprint studies, and they're the one place emoji earn their keep. Everything
+ * that is a control or a status is drawn from the stroke set instead.
+ */
 const CATEGORY_ICONS: Record<TaskKey, string> = {
   aptitude: "📐",
   reasoning: "🧩",
@@ -213,10 +219,10 @@ export default function DashboardPage() {
     return (
       <div className="flex min-h-[60dvh] items-center justify-center">
         <div className="flex flex-col items-center gap-3">
-          <svg className="h-8 w-8 animate-spin text-accent" viewBox="0 0 24 24" fill="none">
+          <svg className="h-7 w-7 animate-spin text-accent" viewBox="0 0 24 24" fill="none">
             <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeDasharray="32" strokeLinecap="round" />
           </svg>
-          <span className="text-[14px] text-text-muted">Loading your sprint…</span>
+          <span className="text-md text-text-muted">Loading your sprint…</span>
         </div>
       </div>
     );
@@ -226,119 +232,119 @@ export default function DashboardPage() {
 
   return (
     <div className="flex flex-col gap-6 animate-fade-in sm:gap-8">
-      {/* ── TOP STATS OVERVIEW (Widescreen 4-Column Grid) ── */}
+      {/* ── At a glance. Each tile's icon names the metric; the number and the
+             line under it carry the state, so nothing swaps glyphs mid-sprint. ── */}
       <section className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         {[
           {
-            label: "Current Day",
-            value: `Day ${currentDay} / ${TOTAL_DAYS}`,
+            label: "Current day",
+            icon: "calendar" as const,
+            value: `Day ${currentDay}`,
+            unit: `of ${TOTAL_DAYS}`,
             sub: hasStarted
-              ? `${todayPlan?.weekday ?? ""} · Week ${todayPlan?.week ?? 1}`
-              : "Ready to begin sprint",
-            icon: "📅",
+              ? `${todayPlan?.weekday ?? ""}, week ${todayPlan?.week ?? 1}`
+              : "Tick anything to begin",
           },
           {
-            label: "Day Tasks",
-            value: `${checkedToday}/${totalTasksForDay}`,
+            label: `Day ${day} tasks`,
+            icon: "list" as const,
+            value: `${checkedToday}`,
+            unit: `of ${totalTasksForDay}`,
             sub: isFutureDay
-              ? "🔒 Read-only preview"
+              ? "Read-only preview"
               : checkedToday === totalTasksForDay
-              ? "All done for today! 🎉"
-              : `${totalTasksForDay - checkedToday} remaining today`,
-            icon: isFutureDay ? "🔒" : checkedToday === totalTasksForDay ? "✅" : "📋",
+              ? "All done"
+              : `${totalTasksForDay - checkedToday} to go`,
           },
           {
-            label: "Sprint Completion",
+            label: "Sprint complete",
+            icon: "chart" as const,
             value: `${overallPct}%`,
-            sub: `${totalChecked} of ${TOTAL_TASKS} total tasks`,
-            icon: "📊",
+            unit: "",
+            sub: `${totalChecked} of ${TOTAL_TASKS} tasks`,
           },
           {
-            label: "Current Streak",
-            value: streak > 0 ? `${streak} Day${streak > 1 ? "s" : ""}` : "0 Days",
-            sub: streak > 0 ? "🔥 Consistency is key!" : "Complete today to start streak",
-            icon: streak > 0 ? "🔥" : "💪",
+            label: "Streak",
+            icon: "flame" as const,
+            value: `${streak}`,
+            unit: streak === 1 ? "day" : "days",
+            sub: streak > 0 ? "Keep it going" : "Finish a day to start one",
           },
-        ].map((stat, i) => (
-          <div
-            key={stat.label}
-            className="stagger-item rounded-xl border border-border bg-surface p-3.5 transition-all duration-200 hover:border-accent/40 sm:p-4"
-            style={{ boxShadow: "var(--shadow-sm)", animationDelay: `${i * 0.05}s` }}
-          >
-            <div className="flex items-start justify-between gap-2">
-              <span className="text-[10.5px] font-semibold uppercase tracking-wider text-text-faint sm:text-[11px]">
-                {stat.label}
-              </span>
-              <span aria-hidden className="text-lg leading-none sm:text-xl">
-                {stat.icon}
-              </span>
+        ].map((stat) => (
+          <div key={stat.label} className="stagger-item card p-3.5 sm:p-4">
+            <div className="flex items-center gap-1.5 text-text-faint">
+              <Icon name={stat.icon} size={13} />
+              <span className="truncate text-xs font-semibold">{stat.label}</span>
             </div>
-            <p className="mt-2 text-[18px] font-bold leading-tight text-text sm:text-[22px]">
-              {stat.value}
+            <p className="mt-2 flex items-baseline gap-1.5">
+              <span className="num font-display text-2xl font-semibold leading-none text-text sm:text-3xl">
+                {stat.value}
+              </span>
+              {stat.unit && (
+                <span className="num text-sm font-medium text-text-faint">{stat.unit}</span>
+              )}
             </p>
-            <p className="mt-1 text-[11.5px] leading-snug text-text-muted sm:text-[12px]">
-              {stat.sub}
-            </p>
+            <p className="mt-1.5 truncate text-sm text-text-muted">{stat.sub}</p>
           </div>
         ))}
       </section>
 
-      {/* ── ERROR MESSAGE ── */}
+      {/* ── Save failures ── */}
       {errorMsg && (
-        <div className="rounded-xl border border-warn/30 bg-warn-soft px-4 py-3 text-[13px] text-warn">
-          {errorMsg}
+        <div className="flex items-start gap-2.5 rounded-xl border border-warn/30 bg-warn-soft px-4 py-3 text-md text-warn">
+          <span aria-hidden className="mt-0.5">
+            <Icon name="cloudOff" size={15} />
+          </span>
+          <span>{errorMsg}</span>
         </div>
       )}
 
       {/* ── DAILY REMINDER PROMPT ── */}
       <NotificationBanner />
 
-      {/* ── MAIN 2-COLUMN DASHBOARD LAYOUT ── */}
+      {/* ── Main layout: the day's work on the left, the sprint's shape on the right ── */}
       <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-12 lg:gap-8">
-        {/* ── LEFT COLUMN: Day Rail & Tasks Checklist (8 cols) ── */}
+        {/* ── Left: day rail and checklist ── */}
         <div className="flex flex-col gap-6 lg:col-span-8">
-          {/* Day Header */}
-          <div className="flex flex-wrap items-end justify-between gap-3">
+          {/* Day header. The day number is the largest thing on the page —
+              everything else here is a quiet annotation on it. */}
+          <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-3">
             <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
-                <span className="text-[12px] font-semibold uppercase tracking-widest text-text-faint">
-                  {day === currentDay ? "Today" : `${dayPlan.weekday}`} · Week {dayPlan.week}
-                </span>
-                {dayPlan.isSunday && (
-                  <span className="badge text-white bg-accent font-bold text-[10px]">
-                    <span aria-hidden>☀️</span>
-                    <span className="sm:hidden">Sunday + GPP</span>
-                    <span className="hidden sm:inline">Sunday Schedule + GPP Projects</span>
-                  </span>
-                )}
-                {isFutureDay && (
-                  <span className="badge text-text-muted bg-surface-raised font-semibold text-[10px] border border-border">
-                    <span aria-hidden>🔒</span>
-                    <span className="sm:hidden">Read-Only</span>
-                    <span className="hidden sm:inline">Future Day (Read-Only)</span>
-                  </span>
-                )}
-              </div>
-              <h1 className="font-display text-[26px] font-bold leading-tight text-text sm:text-[32px]">
-                Day {day}{" "}
-                <span className="text-[20px] font-normal text-text-faint sm:text-[24px]">
-                  / {TOTAL_DAYS}
+              <h1 className="font-display text-3xl font-semibold leading-none text-text sm:text-4xl">
+                Day {day}
+                <span className="num ml-2 text-xl font-normal text-text-faint sm:text-2xl">
+                  of {TOTAL_DAYS}
                 </span>
               </h1>
+              <p className="mt-2 text-md text-text-muted">
+                {day === currentDay ? "Today" : dayPlan.weekday}, week {dayPlan.week}
+              </p>
             </div>
-            <div className="flex items-center gap-2">
+
+            <div className="flex flex-wrap items-center gap-2">
+              {dayPlan.isSunday && (
+                <span className="badge border border-border bg-surface-raised text-text-muted">
+                  <Icon name="sun" size={12} />
+                  Sunday schedule
+                </span>
+              )}
+              {isFutureDay && (
+                <span className="badge border border-border bg-surface-raised text-text-muted">
+                  <Icon name="lock" size={12} />
+                  Read-only
+                </span>
+              )}
               {streak > 0 && (
                 <span className="badge border border-warn/30 bg-warn-soft text-warn">
-                  🔥 {streak}-day streak
+                  <Icon name="flame" size={12} />
+                  {streak}-day streak
                 </span>
               )}
               <span
-                className="badge text-white"
+                className="badge num text-on-fill"
                 style={{
                   background:
-                    checkedToday === totalTasksForDay
-                      ? "var(--done)"
-                      : "var(--accent-gradient)",
+                    checkedToday === totalTasksForDay ? "var(--done)" : "var(--accent)",
                 }}
               >
                 {checkedToday}/{totalTasksForDay} done
@@ -346,7 +352,6 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* Spacious 21-Day Rail */}
           <DayRail
             plan={plan}
             progressByDay={progressByDay}
@@ -355,46 +360,47 @@ export default function DashboardPage() {
             onSelect={setSelectedDay}
           />
 
-          {/* Checklist Section */}
-          <section className="mt-2">
-            <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-              <div>
-                <h2 className="font-display text-[20px] font-bold text-text">
-                  {displayName}&apos;s Daily Checklist
+          {/* ── The checklist itself ── */}
+          <section>
+            <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+              <div className="min-w-0">
+                <h2 className="font-display text-xl font-semibold text-text">
+                  {displayName}&apos;s checklist
                 </h2>
-                <p className="text-[12.5px] text-text-muted">
+                <p className="mt-1 max-w-[62ch] text-sm text-text-muted">
                   {isFutureDay
-                    ? "Viewing upcoming syllabus in read-only mode"
+                    ? "A preview of what this day holds. Ticking opens up when you get there."
                     : dayPlan.isSunday
-                    ? "Sunday Half Study (4h30m) + 1h GPP Project Revision · 1:30 PM onward 100% Free Reset"
-                    : "Daily 3h30m Study Chain (7:30 PM – 11:45 PM) with Dinner Break at 9:00 PM"}
+                    ? "Four and a half hours of study, then an hour on the project. From 1:30 PM the day is yours."
+                    : "Three and a half hours, 7:30 PM to 11:45 PM, with dinner at 9:00 PM."}
                 </p>
               </div>
 
               <button
                 onClick={() => setScheduleOpen(true)}
-                className="flex min-h-[36px] items-center gap-1 rounded-full border border-border bg-surface-raised px-3 text-[12px] font-semibold text-accent hover:underline"
+                className="btn-ghost shrink-0 px-3 py-2 text-sm"
               >
-                <span aria-hidden>⏰</span> View Schedule &amp; Timings →
+                <Icon name="clock" size={14} />
+                Timetable
               </button>
             </div>
 
-            {/* Future Day Read-Only Banner */}
             {isFutureDay && (
-              <div className="mb-4 flex flex-col gap-2 rounded-xl border border-border bg-surface-raised px-4 py-3 text-[13px] text-text-muted animate-fade-in sm:flex-row sm:items-center sm:justify-between sm:gap-3">
-                <div className="flex items-start gap-2.5 sm:items-center">
-                  <span aria-hidden className="text-lg leading-none">🔒</span>
-                  <span>
-                    <strong>Day {day} is upcoming.</strong> You are currently on{" "}
-                    <strong>Day {currentDay}</strong>. You can preview all upcoming tasks below in
-                    Read-Only mode.
+              <div className="animate-fade-in mb-4 flex flex-col gap-2.5 rounded-xl border border-border bg-surface-raised px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+                <p className="flex items-start gap-2.5 text-md text-text-muted sm:items-center">
+                  <span aria-hidden className="mt-0.5 shrink-0 text-text-faint sm:mt-0">
+                    <Icon name="lock" size={15} />
                   </span>
-                </div>
+                  <span>
+                    Day {day} hasn&apos;t arrived yet — you&apos;re on day {currentDay}. Read ahead
+                    as much as you like.
+                  </span>
+                </p>
                 <button
                   onClick={() => setSelectedDay(currentDay)}
-                  className="min-h-[36px] shrink-0 self-start text-[12px] font-semibold text-accent hover:underline sm:self-auto"
+                  className="min-h-[36px] shrink-0 self-start text-sm font-semibold text-accent hover:underline sm:self-auto"
                 >
-                  Go to Day {currentDay} →
+                  Back to day {currentDay}
                 </button>
               </div>
             )}
@@ -424,56 +430,52 @@ export default function DashboardPage() {
           </section>
         </div>
 
-        {/* ── RIGHT COLUMN / SIDEBAR: Progress Analytics, Domain Mastery & Squad (4 cols) ── */}
+        {/* ── Right: the shape of the whole sprint ── */}
         <div className="flex flex-col gap-6 lg:col-span-4">
-          {/* Sprint Overview Card */}
-          <div
-            className="rounded-xl border border-border bg-surface p-4 animate-fade-in-up sm:p-5"
-            style={{ boxShadow: "var(--shadow-sm)" }}
-          >
-            <div className="flex items-center justify-between pb-3 border-b border-border-soft">
-              <span className="text-[12px] font-bold uppercase tracking-wider text-text-faint">
-                Sprint Overview
-              </span>
-              <span className="badge text-white" style={{ background: "var(--accent-gradient)" }}>
-                21-Day Goal
+          {/* Sprint overview */}
+          <div className="card animate-fade-in-up p-4 sm:p-5">
+            <div className="flex items-baseline justify-between gap-3">
+              <h2 className="font-display text-lg font-semibold text-text">Sprint overview</h2>
+              <span className="num text-sm text-text-faint">
+                {totalChecked} of {TOTAL_TASKS}
               </span>
             </div>
 
-            <div className="mt-4 flex items-baseline justify-between">
-              <span className="font-display text-[32px] font-bold text-text">{overallPct}%</span>
-              <span className="text-[13px] text-text-muted font-medium">
-                {totalChecked} / {TOTAL_TASKS} Tasks
+            <div className="mt-3 flex items-end justify-between gap-3">
+              <span className="num font-display text-4xl font-semibold leading-none text-text">
+                {overallPct}%
               </span>
+              <span className="text-sm text-text-muted">complete</span>
             </div>
 
-            <div className="mt-2">
+            <div className="mt-3">
               <ProgressBar percent={overallPct} size="md" />
             </div>
 
-            <div className="mt-4 grid grid-cols-2 gap-3 pt-3 border-t border-border-soft">
-              <div className="text-center p-2 rounded-lg bg-surface-raised">
-                <p className="text-[11px] text-text-faint uppercase font-semibold">Days Finished</p>
-                <p className="text-[16px] font-bold text-text mt-0.5">{finishedDays} / {TOTAL_DAYS}</p>
+            <dl className="mt-4 grid grid-cols-2 gap-3 border-t border-border-soft pt-4">
+              <div>
+                <dt className="text-xs font-semibold text-text-faint">Days finished</dt>
+                <dd className="num mt-1 text-lg font-semibold text-text">
+                  {finishedDays}
+                  <span className="text-sm font-normal text-text-faint"> of {TOTAL_DAYS}</span>
+                </dd>
               </div>
-              <div className="text-center p-2 rounded-lg bg-surface-raised">
-                <p className="text-[11px] text-text-faint uppercase font-semibold">Sprint Started</p>
-                <p className="text-[13px] font-bold text-text mt-0.5">{formatDateShort(user.start_date)}</p>
+              <div>
+                <dt className="text-xs font-semibold text-text-faint">Started</dt>
+                <dd className="mt-1 text-lg font-semibold text-text">
+                  {formatDateShort(user.start_date)}
+                </dd>
               </div>
-            </div>
+            </dl>
           </div>
 
-          {/* Subject / Domain Mastery Breakdown */}
+          {/* Subject mastery */}
           <div
-            className="rounded-xl border border-border bg-surface p-4 animate-fade-in-up sm:p-5"
-            style={{ boxShadow: "var(--shadow-sm)", animationDelay: "0.1s" }}
+            className="card animate-fade-in-up p-4 sm:p-5"
+            style={{ animationDelay: "0.08s" }}
           >
-            <div className="flex items-center justify-between pb-3 border-b border-border-soft">
-              <span className="text-[12px] font-bold uppercase tracking-wider text-text-faint">
-                Subject Mastery
-              </span>
-              <span className="text-[11px] text-text-faint">Total Tracked</span>
-            </div>
+            <h2 className="font-display text-lg font-semibold text-text">Subject mastery</h2>
+            <p className="mt-1 text-sm text-text-muted">Every day of the sprint, added up.</p>
 
             <div className="mt-4 flex flex-col gap-3.5">
               {(
@@ -492,14 +494,16 @@ export default function DashboardPage() {
                 const totalTarget = plan.plannedFor(key);
                 const pct = totalTarget > 0 ? Math.min(100, Math.round((count / totalTarget) * 100)) : 0;
                 return (
-                  <div key={key} className="flex flex-col gap-1">
-                    <div className="flex items-center justify-between text-[12.5px]">
-                      <span className="font-medium text-text flex items-center gap-1.5">
-                        <span>{CATEGORY_ICONS[key]}</span>
-                        <span>{TASK_LABELS[key]}</span>
+                  <div key={key} className="flex flex-col gap-1.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="flex min-w-0 items-center gap-1.5 text-base font-medium text-text">
+                        <span aria-hidden className="text-sm leading-none">
+                          {CATEGORY_ICONS[key]}
+                        </span>
+                        <span className="truncate">{TASK_LABELS[key]}</span>
                       </span>
-                      <span className="font-semibold text-text-muted tabular-nums text-[11.5px]">
-                        {count}/{totalTarget} ({pct}%)
+                      <span className="num shrink-0 text-xs font-semibold text-text-faint">
+                        {count}/{totalTarget}
                       </span>
                     </div>
                     <ProgressBar
@@ -513,70 +517,62 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* Quick Squad Leaderboard Widget */}
+          {/* Squad standings */}
           {topSquad.length > 0 && (
             <div
-              className="rounded-xl border border-border bg-surface p-4 animate-fade-in-up sm:p-5"
-              style={{ boxShadow: "var(--shadow-sm)", animationDelay: "0.15s" }}
+              className="card animate-fade-in-up p-4 sm:p-5"
+              style={{ animationDelay: "0.16s" }}
             >
-              <div className="flex items-center justify-between pb-3 border-b border-border-soft">
-                <span className="text-[12px] font-bold uppercase tracking-wider text-text-faint">
-                  Squad Standings
-                </span>
-                <Link
-                  href="/squad"
-                  className="text-[12px] font-semibold text-accent hover:underline flex items-center gap-1"
-                >
-                  View All ({squadUsers.length}) →
+              <div className="flex items-baseline justify-between gap-3">
+                <h2 className="font-display text-lg font-semibold text-text">Squad standings</h2>
+                <Link href="/squad" className="text-sm font-semibold text-accent hover:underline">
+                  View all {squadUsers.length}
                 </Link>
               </div>
 
-              <div className="mt-3 flex flex-col gap-2.5">
+              <ol className="mt-4 flex flex-col gap-2">
                 {topSquad.map((item, idx) => {
                   const isYou = item.user.id === user.id;
                   const dName = item.user.nickname || item.user.name;
                   const initial = dName.slice(0, 1).toUpperCase();
-                  const medals = ["🥇", "🥈", "🥉", "4th"];
 
                   return (
-                    <div
+                    <li
                       key={item.user.id}
-                      className={`flex items-center gap-3 p-2.5 rounded-lg border transition-colors ${
+                      className={`flex items-center gap-3 rounded-lg border px-2.5 py-2 ${
                         isYou
                           ? "border-accent/40 bg-accent-soft"
-                          : "border-border bg-surface-raised"
+                          : "border-border-soft bg-surface-raised"
                       }`}
                     >
-                      <span className="text-[12px] font-bold w-5 text-center">
-                        {medals[idx]}
+                      <span className="num w-4 shrink-0 text-center text-sm font-semibold text-text-faint">
+                        {idx + 1}
                       </span>
-                      <span
-                        aria-hidden
-                        className="grid h-7 w-7 shrink-0 place-items-center rounded-full text-[11px] font-bold text-white shadow-sm"
-                        style={{ background: "var(--accent-gradient)" }}
-                      >
+                      <span aria-hidden className="avatar h-7 w-7 text-xs">
                         {initial}
                       </span>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-1.5">
-                          <span className="truncate text-[13px] font-semibold text-text">
+                          <span className="truncate text-base font-semibold text-text">
                             {dName}
                           </span>
                           {isYou && (
-                            <span className="rounded-full px-1.5 py-0.5 text-[9px] font-bold text-white bg-accent">
+                            <span className="badge bg-accent px-1.5 py-0 text-2xs text-on-fill">
                               You
                             </span>
                           )}
                         </div>
-                        <ProgressBar percent={item.overallPct} size="sm" />
+                        <div className="mt-1">
+                          <ProgressBar percent={item.overallPct} size="sm" />
+                        </div>
                       </div>
-                      <span className="text-[12px] font-bold tabular-nums text-text-muted">
+                      <span className="num shrink-0 text-sm font-semibold text-text-muted">
                         {item.overallPct}%
                       </span>
-                    </div>
+                    </li>
                   );
                 })}
-              </div>
+              </ol>
             </div>
           )}
         </div>

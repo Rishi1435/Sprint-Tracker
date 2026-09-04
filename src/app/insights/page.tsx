@@ -7,11 +7,13 @@ import { getProgressForUser, subscribeToAllProgress } from "@/lib/db";
 import type { ProgressRow } from "@/lib/types";
 import { TOTAL_DAYS, TOTAL_TASKS, buildSprintPlan } from "@/lib/plan";
 import { totalCheckedForUser, overallPercent, currentStreak, completedDaysCount } from "@/lib/stats";
+import { dayNumberFor } from "@/lib/date";
 import Heatmap from "@/components/Heatmap";
 import RadarChart from "@/components/RadarChart";
 import TrendLine from "@/components/TrendLine";
 import Badges from "@/components/Badges";
 import ShareExport from "@/components/ShareExport";
+import Icon from "@/components/Icon";
 
 export default function InsightsPage() {
   const router = useRouter();
@@ -68,39 +70,96 @@ export default function InsightsPage() {
   if (userLoading || !user) {
     return (
       <div className="flex min-h-[60dvh] items-center justify-center">
-        <span className="text-[14px] text-text-muted">Loading…</span>
+        <span className="text-md text-text-muted">Loading…</span>
       </div>
     );
   }
 
+  const avgPerDay =
+    finishedDays > 0 ? (totalChecked / Math.max(1, finishedDays)).toFixed(1) : "0";
+
+  // Charts only ever render on the client (the page returns the loading branch
+  // until `user` resolves), so reading today's date here can't desync hydration.
+  const currentDay = dayNumberFor(user.start_date, TOTAL_DAYS);
+
   return (
     <div className="flex flex-col gap-6 animate-fade-in sm:gap-8">
       <div>
-        <p className="text-[12px] font-semibold uppercase tracking-widest text-text-faint">
-          Personal Analytics
-        </p>
-        <h1 className="font-display text-[26px] font-bold text-text sm:text-[32px]">
-          Your Sprint Insights
+        <h1 className="font-display text-3xl font-semibold leading-none text-text sm:text-4xl">
+          Insights
         </h1>
+        <p className="mt-2 max-w-[52ch] text-md text-text-muted">
+          Where the {TOTAL_TASKS} tasks a night are actually going — by day, by
+          subject, and over the whole sprint.
+        </p>
       </div>
 
-      {/* Top stat tiles */}
+      {/* Same tile as the dashboard and the squad room: the icon names the metric,
+          the number stays in --text, and only the icon is tinted. */}
       <section className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
-        <StatTile label="Overall" value={`${overallPct}%`} sub={`${totalChecked} of ${TOTAL_TASKS} tasks`} icon="📊" />
-        <StatTile label="Days Done" value={`${finishedDays}/${TOTAL_DAYS}`} sub="Fully completed days" icon="📅" />
-        <StatTile label="Streak" value={streak > 0 ? `${streak}d` : "0d"} sub={streak > 0 ? "Keep it going!" : "Start a streak"} icon="🔥" />
-        <StatTile label="Avg/day" value={finishedDays > 0 ? (totalChecked / Math.max(1, finishedDays)).toFixed(1) : "0"} sub="Tasks per active day" icon="⚡" />
+        {[
+          {
+            label: "Overall",
+            icon: "chart" as const,
+            value: `${overallPct}%`,
+            unit: "",
+            sub: `${totalChecked} of ${TOTAL_TASKS} tasks`,
+          },
+          {
+            label: "Days done",
+            icon: "calendar" as const,
+            value: `${finishedDays}`,
+            unit: `of ${TOTAL_DAYS}`,
+            sub: "Cleared end to end",
+          },
+          {
+            label: "Streak",
+            icon: "flame" as const,
+            value: `${streak}`,
+            unit: streak === 1 ? "day" : "days",
+            sub: streak > 0 ? "Running right now" : "Nothing going yet",
+          },
+          {
+            label: "Per active day",
+            icon: "bolt" as const,
+            value: avgPerDay,
+            unit: "tasks",
+            sub: "Averaged over days you worked",
+          },
+        ].map((stat) => (
+          <div key={stat.label} className="stagger-item card p-3.5 sm:p-4">
+            <div className="flex items-center gap-1.5 text-text-faint">
+              <Icon name={stat.icon} size={13} />
+              <span className="truncate text-xs font-semibold">{stat.label}</span>
+            </div>
+            <p className="mt-2 flex items-baseline gap-1.5">
+              <span className="num font-display text-2xl font-semibold leading-none text-text sm:text-3xl">
+                {stat.value}
+              </span>
+              {stat.unit && (
+                <span className="num text-sm font-medium text-text-faint">{stat.unit}</span>
+              )}
+            </p>
+            <p className="mt-1.5 truncate text-sm text-text-muted">{stat.sub}</p>
+          </div>
+        ))}
       </section>
 
       {errorMsg && (
-        <div className="rounded-xl border border-warn/30 bg-warn-soft px-4 py-3 text-[13px] text-warn">
+        <div
+          role="alert"
+          className="flex items-center gap-2 rounded-xl border border-warn/30 bg-warn-soft px-4 py-3 text-md text-warn"
+        >
+          <Icon name="cloudOff" size={15} />
           {errorMsg}
         </div>
       )}
 
       {loading ? (
         <div className="flex min-h-[30dvh] items-center justify-center">
-          <span className="text-[14px] text-text-muted">Crunching your numbers…</span>
+          <svg className="h-8 w-8 animate-spin text-accent" viewBox="0 0 24 24" fill="none">
+            <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeDasharray="32" strokeLinecap="round" />
+          </svg>
         </div>
       ) : (
         <>
@@ -109,30 +168,10 @@ export default function InsightsPage() {
             <Heatmap plan={plan} rows={rows} />
             <RadarChart plan={plan} rows={rows} />
           </div>
-          <TrendLine plan={plan} rows={rows} />
+          <TrendLine plan={plan} rows={rows} currentDay={currentDay} />
           <Badges plan={plan} rows={rows} />
         </>
       )}
-    </div>
-  );
-}
-
-function StatTile({ label, value, sub, icon }: { label: string; value: string; sub: string; icon: string }) {
-  return (
-    <div
-      className="rounded-xl border border-border bg-surface p-3.5 sm:p-4"
-      style={{ boxShadow: "var(--shadow-sm)" }}
-    >
-      <div className="flex items-start justify-between gap-2">
-        <span className="text-[10.5px] font-semibold uppercase tracking-wider text-text-faint sm:text-[11px]">
-          {label}
-        </span>
-        <span aria-hidden className="text-lg leading-none sm:text-xl">
-          {icon}
-        </span>
-      </div>
-      <p className="mt-2 text-[18px] font-bold leading-tight text-text sm:text-[22px]">{value}</p>
-      <p className="mt-1 text-[11.5px] leading-snug text-text-muted sm:text-[12px]">{sub}</p>
     </div>
   );
 }

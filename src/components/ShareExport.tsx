@@ -5,6 +5,8 @@ import type { ProgressRow, UserRow } from "@/lib/types";
 import { buildSprintSummary } from "@/lib/summary";
 import { renderShareCardPng, type CardTheme } from "@/lib/shareCard";
 import { buildSprintReport, reportFileName } from "@/lib/report";
+import Icon from "./Icon";
+import Modal from "./Modal";
 
 interface Props {
   user: UserRow;
@@ -57,15 +59,6 @@ export default function ShareExport({ user, rows }: Props) {
     });
     setNote(null);
   }, []);
-
-  useEffect(() => {
-    if (!preview) return;
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") closePreview();
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [preview, closePreview]);
 
   const makeCard = async () => {
     setError(null);
@@ -136,17 +129,14 @@ export default function ShareExport({ user, rows }: Props) {
   };
 
   return (
-    <section
-      className="rounded-xl border border-border bg-surface p-4 sm:p-5"
-      style={{ boxShadow: "var(--shadow-sm)" }}
-    >
+    <section className="card p-4 sm:p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
-          <h2 className="font-display text-[15px] font-bold text-text sm:text-[16px]">
-            Export &amp; share
+          <h2 className="font-display text-lg font-semibold leading-tight text-text">
+            Export and share
           </h2>
-          <p className="mt-1 text-[12px] leading-snug text-text-muted sm:text-[12.5px]">
-            Grab a progress card for your status, or the full sprint report as a PDF.
+          <p className="mt-1 max-w-[46ch] text-sm leading-relaxed text-text-muted">
+            A progress card for your status, or the whole sprint as a PDF.
           </p>
         </div>
         <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
@@ -154,99 +144,83 @@ export default function ShareExport({ user, rows }: Props) {
             type="button"
             onClick={makeCard}
             disabled={busy !== null}
-            className="btn-primary min-h-[44px] flex-1 px-4 text-[13px] disabled:opacity-60 sm:min-h-0 sm:flex-none"
+            className="btn-primary min-h-[44px] flex-1 sm:min-h-0 sm:flex-none"
           >
+            <Icon name="share" size={14} />
             {busy === "card" ? "Drawing…" : "Share card"}
           </button>
           <button
             type="button"
             onClick={makePdf}
             disabled={busy !== null}
-            className="min-h-[44px] flex-1 rounded-lg border border-border bg-surface px-4 text-[13px] font-semibold text-text transition-colors hover:border-accent/40 disabled:opacity-60 sm:min-h-0 sm:flex-none sm:py-2.5"
+            className="btn-ghost min-h-[44px] flex-1 text-text sm:min-h-0 sm:flex-none"
           >
+            <Icon name="download" size={14} />
             {busy === "pdf" ? "Building…" : "Download report"}
           </button>
         </div>
       </div>
 
       {error && (
-        <p role="alert" className="mt-3 text-[12px] text-warn">
+        <p role="alert" className="mt-3 flex items-center gap-1.5 text-sm text-warn">
+          <Icon name="cloudOff" size={14} />
           {error}
         </p>
       )}
 
       {preview && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Share your progress card"
-        >
-          <div
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity animate-fade-in"
-            onClick={closePreview}
-            aria-hidden="true"
-          />
-          <div className="glass-card relative z-10 max-h-[88dvh] w-full max-w-2xl overflow-y-auto overscroll-contain p-4 animate-fade-in-up sm:p-6">
-            <div className="mb-3 flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <h3 className="font-display text-[16px] font-bold text-text sm:text-[18px]">
-                  Your progress card
-                </h3>
-                <p className="mt-0.5 text-[12px] text-text-muted">
-                  1200 × 630 PNG — sized for WhatsApp, LinkedIn and X.
-                </p>
+        <Modal
+          isOpen
+          onClose={closePreview}
+          size="lg"
+          title="Your progress card"
+          footer={
+            <div className="flex flex-col gap-2.5">
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={shareCard}
+                  className="btn-primary min-h-[44px] flex-1 sm:flex-none"
+                >
+                  <Icon name="share" size={14} />
+                  Share
+                </button>
+                <button
+                  type="button"
+                  onClick={() => saveBlob(preview.blob, preview.name)}
+                  className="btn-ghost min-h-[44px] flex-1 text-text sm:flex-none"
+                >
+                  <Icon name="download" size={14} />
+                  Download
+                </button>
+                <button
+                  type="button"
+                  onClick={copyCard}
+                  className="btn-ghost min-h-[44px] flex-1 sm:flex-none"
+                >
+                  Copy
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={closePreview}
-                className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-[15px] text-text-faint transition-colors hover:bg-surface-raised hover:text-text"
-                aria-label="Close"
-              >
-                ✕
-              </button>
+              {note && (
+                <p role="status" className="text-sm leading-relaxed text-text-muted">
+                  {note}
+                </p>
+              )}
             </div>
-
-            {/* eslint-disable-next-line @next/next/no-img-element -- a blob: URL can't go through next/image */}
-            <img
-              src={preview.url}
-              alt="Your sprint progress card"
-              width={1200}
-              height={630}
-              className="w-full rounded-xl border border-border"
-            />
-
-            <div className="mt-4 flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={shareCard}
-                className="btn-primary min-h-[44px] flex-1 px-4 text-[13px] sm:flex-none"
-              >
-                Share
-              </button>
-              <button
-                type="button"
-                onClick={() => saveBlob(preview.blob, preview.name)}
-                className="min-h-[44px] flex-1 rounded-lg border border-border bg-surface px-4 text-[13px] font-semibold text-text transition-colors hover:border-accent/40 sm:flex-none"
-              >
-                Download
-              </button>
-              <button
-                type="button"
-                onClick={copyCard}
-                className="min-h-[44px] flex-1 rounded-lg border border-border bg-surface px-4 text-[13px] font-semibold text-text-muted transition-colors hover:text-text sm:flex-none"
-              >
-                Copy
-              </button>
-            </div>
-
-            {note && (
-              <p role="status" className="mt-3 text-[12px] leading-snug text-text-muted">
-                {note}
-              </p>
-            )}
-          </div>
-        </div>
+          }
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element -- a blob: URL can't go through next/image */}
+          <img
+            src={preview.url}
+            alt="Your sprint progress card"
+            width={1200}
+            height={630}
+            className="w-full rounded-xl border border-border-soft"
+          />
+          <p className="mt-2.5 text-sm text-text-faint">
+            1200 × 630 PNG, sized for WhatsApp, LinkedIn and X.
+          </p>
+        </Modal>
       )}
     </section>
   );

@@ -8,6 +8,7 @@ import {
   formatCountdown,
 } from "@/lib/schedule";
 import { useCurrentUser } from "@/lib/useCurrentUser";
+import Icon from "./Icon";
 
 export default function StudyTimer() {
   const { user, loading } = useCurrentUser();
@@ -59,36 +60,40 @@ export default function StudyTimer() {
   if (!block && !upcoming) return null;
 
   return (
-    <div
-      className="floating-widget z-40 max-w-[280px] rounded-2xl border border-border bg-surface/95 shadow-lg backdrop-blur-md transition-all duration-300"
-      style={{ boxShadow: "var(--shadow-lg)" }}
-    >
+    <div className="floating-widget glass-card z-40 max-w-[280px] overflow-hidden">
       {/* One button for both states — the header is tappable whether a block is
           running or the next one is still hours away. */}
       <button
         onClick={() => setExpanded((e) => !e)}
         className="flex w-full items-center gap-3 px-4 py-3 text-left"
-        aria-label="Toggle study timer details"
+        aria-label="Study timer details"
         aria-expanded={expanded}
       >
         {block ? (
           <>
             <span
               aria-hidden
-              className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-white"
-              style={{ background: isStudy ? "var(--accent-gradient)" : "var(--warn-soft)" }}
+              className="grid h-9 w-9 shrink-0 place-items-center rounded-full"
+              style={
+                isStudy
+                  ? { background: "var(--accent)", color: "var(--on-fill)" }
+                  : { background: "var(--warn-soft)", color: "var(--warn)" }
+              }
             >
-              {isStudy ? "⏱️" : "☕"}
+              <Icon name={isStudy ? "clock" : "coffee"} size={17} />
             </span>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-[12.5px] font-semibold text-text">
-                {isStudy ? "📚 " : "🍽️ "}
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-sm font-semibold text-text">
                 {block.slot.title}
-              </p>
-              <p className="text-[11px] text-text-faint">
-                {block.slot.time} · {formatMs(block.remainingMs)} left
-              </p>
-            </div>
+              </span>
+              <span className="mt-0.5 flex items-center gap-2 text-xs text-text-faint">
+                <span className="num shrink-0 font-semibold text-text-muted">
+                  {formatMs(block.remainingMs)} left
+                </span>
+                <span aria-hidden className="h-2.5 w-px shrink-0 bg-border" />
+                <span className="num truncate">{block.slot.time}</span>
+              </span>
+            </span>
           </>
         ) : upcoming ? (
           <>
@@ -96,19 +101,23 @@ export default function StudyTimer() {
               aria-hidden
               className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-surface-raised text-text-muted"
             >
-              ⏳
+              <Icon name="clock" size={17} />
             </span>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-[12.5px] font-semibold text-text">
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-sm font-semibold text-text">
                 Up next: {upcoming.slot.title}
-              </p>
+              </span>
               {/* `formatCountdown`, not `formatMs`: the wait back to the 7:30 PM
                   block can be most of a day, which MM:SS would print as a
                   four-digit minute count. */}
-              <p className="truncate text-[11px] text-text-faint">
-                {upcoming.slot.time} · in {formatCountdown(upcoming.startsInMs)}
-              </p>
-            </div>
+              <span className="mt-0.5 flex items-center gap-2 text-xs text-text-faint">
+                <span className="num shrink-0 font-semibold text-text-muted">
+                  in {formatCountdown(upcoming.startsInMs)}
+                </span>
+                <span aria-hidden className="h-2.5 w-px shrink-0 bg-border" />
+                <span className="num truncate">{upcoming.slot.time}</span>
+              </span>
+            </span>
           </>
         ) : null}
       </button>
@@ -116,11 +125,11 @@ export default function StudyTimer() {
       {/* Open in both states: the mute switch used to be reachable only while a
           block was running, which is the minority of the day. */}
       {expanded && (
-        <div className="border-t border-border-soft px-4 py-3 animate-fade-in">
+        <div className="animate-fade-in border-t border-border-soft px-4 py-3">
           {block && (
             <div className="h-1.5 w-full overflow-hidden rounded-full bg-border">
               <div
-                className="h-1.5 rounded-full transition-all duration-500"
+                className="h-1.5 rounded-full transition-[width] duration-500"
                 style={{
                   width: `${Math.max(0, Math.min(100, ((block.endMin - block.nowMin) / Math.max(1, block.endMin - block.startMin)) * 100))}%`,
                   background: isStudy ? "var(--accent-gradient)" : "var(--warn)",
@@ -129,17 +138,18 @@ export default function StudyTimer() {
             </div>
           )}
           <div
-            className={`flex items-center justify-between gap-2 text-[11px] text-text-faint ${
-              block ? "mt-2" : ""
+            className={`flex items-center justify-between gap-2 text-xs text-text-faint ${
+              block ? "mt-2.5" : ""
             }`}
           >
             <span className="truncate">{(block ?? upcoming)?.slot.duration}</span>
             <button
               onClick={() => setMuted((m) => !m)}
-              className="min-h-[32px] shrink-0 rounded-full border border-border px-3 text-[10.5px] font-semibold text-text-muted hover:border-accent"
+              className="flex min-h-[32px] shrink-0 items-center gap-1.5 rounded-full border border-border px-3 text-xs font-semibold text-text-muted transition-colors hover:border-accent hover:text-text"
               aria-pressed={!muted}
             >
-              {muted ? "🔇 Unmute" : "🔔 Mute"}
+              <Icon name={muted ? "bellOff" : "bell"} size={12} />
+              {muted ? "Chime at the end" : "Silence the chime"}
             </button>
           </div>
         </div>

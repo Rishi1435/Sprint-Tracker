@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { useCurrentUser } from "@/lib/useCurrentUser";
 import { NAV_ITEMS } from "@/lib/nav";
 import { buildSprintPlan } from "@/lib/plan";
+import Icon from "./Icon";
 import ThemeToggle from "./ThemeToggle";
 import ProfileModal from "./ProfileModal";
 import ScheduleRulesModal from "./ScheduleRulesModal";
@@ -36,35 +37,33 @@ export default function NavBar() {
         }}
       >
         <div className="mx-auto flex w-full max-w-[1600px] items-center justify-between gap-2 px-4 sm:px-8 xl:px-12 py-3">
-          {/* Logo */}
-          <Link href="/" className="group flex shrink-0 items-center gap-2.5">
+          {/* Logo — the same ticked square as the app icon and the favicon, so
+              the tab, the home screen and the header all show one mark. */}
+          <Link href="/" className="flex shrink-0 items-center gap-2.5">
             <span
               aria-hidden
-              className="grid h-8 w-8 place-items-center rounded-lg text-[13px] font-bold text-white transition-transform duration-300 group-hover:scale-110"
+              className="grid h-8 w-8 place-items-center rounded-lg text-on-fill"
               style={{ background: "var(--accent-gradient)" }}
             >
-              21
+              <Icon name="check" size={17} strokeWidth={2.4} />
             </span>
-            <span className="font-display text-[15px] font-semibold tracking-tight text-text sm:text-[16px]">
-              Sprint Room
-            </span>
+            <span className="font-display text-lg font-semibold text-text">Sprint Room</span>
           </Link>
 
           <div className="flex items-center gap-1.5 sm:gap-2.5">
             {/* Navigation pills — the mobile tab bar covers these below `md` */}
             {signedIn && (
-              <nav className="hidden items-center gap-1 rounded-full border border-border bg-surface p-1 shadow-sm md:flex">
+              <nav className="hidden items-center gap-1 rounded-full border border-border-soft bg-surface-raised p-1 md:flex">
                 {NAV_ITEMS.map((item) => (
                   <Link
                     key={item.href}
                     href={item.href}
                     aria-current={isActive(item.href) ? "page" : undefined}
-                    className={`rounded-full px-4 py-1.5 text-[13px] font-medium transition-all duration-200 ${
+                    className={`rounded-full px-4 py-1.5 text-base font-medium transition-colors duration-200 ${
                       isActive(item.href)
-                        ? "text-white shadow-sm"
+                        ? "bg-accent text-on-fill"
                         : "text-text-muted hover:text-text"
                     }`}
-                    style={isActive(item.href) ? { background: "var(--accent-gradient)" } : {}}
                   >
                     {item.label}
                   </Link>
@@ -72,32 +71,28 @@ export default function NavBar() {
               </nav>
             )}
 
-            {/* Schedule & Rules Button */}
+            {/* Timetable & rules */}
             {signedIn && (
               <button
                 onClick={() => setScheduleOpen(true)}
-                className="grid h-10 min-w-[40px] place-items-center rounded-full border border-border bg-surface px-2.5 text-[13px] font-semibold text-text-muted transition-all duration-200 hover:border-accent hover:text-text hover:shadow-sm md:flex md:h-auto md:items-center md:gap-1.5 md:py-1.5"
-                title="View Daily Timetable & Sprint Rules"
-                aria-label="View daily timetable and sprint rules"
+                className="flex h-10 items-center gap-1.5 rounded-full border border-border bg-surface px-2.5 text-base font-medium text-text-muted transition-colors duration-200 hover:border-accent hover:text-text"
+                title="Timetable and sprint rules"
+                aria-label="Timetable and sprint rules"
               >
-                <span aria-hidden>⏰</span>
-                <span className="hidden lg:inline font-medium">Timetable &amp; Rules</span>
+                <Icon name="clock" size={17} />
+                <span className="hidden lg:inline">Timetable</span>
               </button>
             )}
 
-            {/* Profile button */}
+            {/* Profile */}
             {signedIn && (
               <button
                 onClick={() => setProfileOpen(true)}
-                className="flex min-h-[40px] items-center gap-2 rounded-full border border-border bg-surface px-2 py-1.5 text-[13px] text-text-muted transition-all duration-200 hover:border-accent hover:text-text hover:shadow-sm sm:px-2.5"
-                title="View Profile"
-                aria-label="View your profile"
+                className="flex h-10 items-center gap-2 rounded-full border border-border bg-surface px-2 text-base text-text-muted transition-colors duration-200 hover:border-accent hover:text-text sm:px-2.5"
+                title="Your profile"
+                aria-label="Your profile"
               >
-                <span
-                  aria-hidden
-                  className="grid h-6 w-6 place-items-center rounded-full text-[11px] font-bold text-white"
-                  style={{ background: "var(--accent-gradient)" }}
-                >
+                <span aria-hidden className="avatar h-6 w-6 text-xs">
                   {initial}
                 </span>
                 <span className="hidden max-w-[10ch] truncate font-medium sm:inline">
